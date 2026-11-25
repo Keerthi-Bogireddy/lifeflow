@@ -27,7 +27,7 @@ On Windows, the generated APK is written to `android\app\build\outputs\apk\debug
 
 LifeFlow stores data locally in the browser or installed app on each device. It does not automatically sync between devices. The Android app does not request network access, and automatic Android backup is disabled; use **Sync & Backup** to export or transfer data manually. The interface libraries are bundled locally, so the app does not need a CDN connection to render.
 
-Use **Manage Categories** in the navigation menu to add custom budget, payment, period flow and symptom, activity, goal, task, and note options. Remove custom options there when no longer needed; this affects future entries only, and built-in options cannot be removed. Period flow levels and symptoms are available in each day's period details. Custom options are saved with app data and included in manual backups.
+Use **Manage Categories** in the navigation menu to add custom budget, payment, period flow and symptom, entertainment type and status, activity, goal, task, and note options. Remove custom options there when no longer needed; this affects future entries only, and built-in options cannot be removed. Period flow levels and symptoms are available in each day's period details. Custom options are saved with app data and included in manual backups.
 
 The Budget Tracker includes separate financial profiles, transfers between profiles, a transaction calendar, and monthly, yearly, or custom-date reports. Currency selection changes the displayed symbol only; it does not convert transaction amounts. Profiles, transactions, and transfers are included in local backups.
 
