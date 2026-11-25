@@ -302,6 +302,13 @@
       return Math.round((b - a) / 86400000);
     }
 
+    function isValidISODate(value) {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const [year, month, day] = value.split('-').map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+    }
+
     const CATEGORY_GROUPS = {
       budgetCategories: {
         label: 'Budget categories',
@@ -310,6 +317,14 @@
       paymentMethods: {
         label: 'Payment methods',
         defaults: ['Cash', 'UPI', 'Debit card', 'Credit card', 'Net banking', 'Other']
+      },
+      periodFlows: {
+        label: 'Period flow levels',
+        defaults: ['Light', 'Medium', 'Heavy']
+      },
+      periodSymptoms: {
+        label: 'Period symptoms',
+        defaults: ['Cramps', 'Fatigue', 'Headache', 'Bloating', 'Mood Swings', 'Backache', 'Clear']
       },
       activityTypes: {
         label: 'Activity types',
@@ -329,6 +344,23 @@
       }
     };
 
+    const CURRENCY_OPTIONS = [
+      { symbol: '₹', label: 'Indian Rupee' },
+      { symbol: '$', label: 'US Dollar' },
+      { symbol: '€', label: 'Euro' },
+      { symbol: '£', label: 'British Pound' },
+      { symbol: '¥', label: 'Japanese Yen' },
+      { symbol: 'C$', label: 'Canadian Dollar' },
+      { symbol: 'A$', label: 'Australian Dollar' },
+      { symbol: 'S$', label: 'Singapore Dollar' },
+      { symbol: 'AED', label: 'UAE Dirham', spaced: true },
+      { symbol: 'SAR', label: 'Saudi Riyal', spaced: true },
+      { symbol: '₱', label: 'Philippine Peso' },
+      { symbol: '₩', label: 'South Korean Won' },
+      { symbol: '₦', label: 'Nigerian Naira' },
+      { symbol: 'R', label: 'South African Rand' }
+    ];
+
     function getDefaultState() {
       return {
         theme: 'light',
@@ -337,7 +369,10 @@
         customOptions: {},
         budget: {
           monthlyLimit: 45000,
-          transactions: []
+          transactions: [],
+          transfers: [],
+          profiles: [{ id: 'personal', name: 'Personal', openingBalance: 0 }],
+          activeProfileId: 'personal'
         },
         period: {
           cycleLength: 28,
@@ -356,6 +391,110 @@
         todos: [],
         notes: [],
         alarms: []
+      };
+    }
+
+    function normalizeStateData(parsed, strict = false) {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Backup data must be a JSON object.');
+      }
+      const defaults = getDefaultState();
+      const parsedBudget = parsed.budget && typeof parsed.budget === 'object' && !Array.isArray(parsed.budget)
+        ? parsed.budget
+        : {};
+      if (strict && (!parsed.budget || !Array.isArray(parsed.budget.transactions) ||
+          !Array.isArray(parsed.todos) || !Array.isArray(parsed.notes) ||
+          !Array.isArray(parsed.period?.logs) || !Array.isArray(parsed.activity?.logs) ||
+          !Array.isArray(parsed.progress?.goals) || !Array.isArray(parsed.progress?.habits) ||
+          !Array.isArray(parsed.alarms))) {
+        throw new Error('Backup is missing required LifeFlow data lists.');
+      }
+
+      const rawProfiles = parsedBudget.profiles === undefined
+        ? defaults.budget.profiles
+        : parsedBudget.profiles;
+      if (!Array.isArray(rawProfiles)) throw new Error('Financial profiles must be a list.');
+      const profiles = rawProfiles.filter(profile =>
+        profile && typeof profile.id === 'string' && profile.id.trim() &&
+        typeof profile.name === 'string' && profile.name.trim().length <= 60 &&
+        Number.isFinite(Number(profile.openingBalance || 0))
+      ).map(profile => ({
+        ...profile,
+        id: profile.id.trim(),
+        name: profile.name.trim(),
+        openingBalance: Number(profile.openingBalance) || 0
+      }));
+      if (strict && profiles.length !== rawProfiles.length) {
+        throw new Error('Backup contains an invalid financial profile.');
+      }
+      if (new Set(profiles.map(profile => profile.id)).size !== profiles.length) {
+        throw new Error('Financial profile IDs must be unique.');
+      }
+      if (!profiles.length) profiles.push({ id: 'personal', name: 'Personal', openingBalance: 0 });
+      const profileIds = new Set(profiles.map(profile => profile.id));
+      const fallbackProfileId = profiles[0].id;
+
+      const rawTransactions = parsedBudget.transactions === undefined
+        ? defaults.budget.transactions
+        : parsedBudget.transactions;
+      const rawTransfers = parsedBudget.transfers === undefined
+        ? defaults.budget.transfers
+        : parsedBudget.transfers;
+      if (!Array.isArray(rawTransactions)) throw new Error('Transactions must be a list.');
+      if (!Array.isArray(rawTransfers)) throw new Error('Transfers must be a list.');
+      const transactions = rawTransactions.map(transaction => {
+        if (!transaction || typeof transaction !== 'object' || Array.isArray(transaction)) {
+          throw new Error('Backup contains an invalid transaction.');
+        }
+        const profileId = transaction.profileId || fallbackProfileId;
+        if (strict && !profileIds.has(profileId)) {
+          throw new Error('A transaction refers to a financial profile that does not exist.');
+        }
+        if (strict && (!['income', 'expense'].includes(transaction.type) ||
+            !Number.isFinite(Number(transaction.amount)) || Number(transaction.amount) <= 0 ||
+            !isValidISODate(transaction.date) || typeof transaction.desc !== 'string' ||
+            typeof transaction.category !== 'string' || typeof transaction.id !== 'string' || !transaction.id)) {
+          throw new Error('Backup contains an incomplete transaction.');
+        }
+        return { ...transaction, profileId: profileIds.has(profileId) ? profileId : fallbackProfileId };
+      });
+      const transfers = rawTransfers.map(transfer => {
+        if (!transfer || typeof transfer !== 'object' || Array.isArray(transfer)) {
+          throw new Error('Backup contains an invalid transfer.');
+        }
+        if (strict && (!profileIds.has(transfer.fromProfileId) || !profileIds.has(transfer.toProfileId) ||
+            transfer.fromProfileId === transfer.toProfileId || !Number.isFinite(Number(transfer.amount)) ||
+            Number(transfer.amount) <= 0 || !isValidISODate(transfer.date) ||
+            typeof transfer.id !== 'string' || !transfer.id)) {
+          throw new Error('Backup contains an incomplete or invalid transfer.');
+        }
+        return transfer;
+      });
+      const requestedActiveProfile = parsedBudget.activeProfileId || defaults.budget.activeProfileId;
+      const activeProfileId = profileIds.has(requestedActiveProfile) ? requestedActiveProfile : fallbackProfileId;
+      const requestedCurrency = typeof parsed.currency === 'string' ? parsed.currency : defaults.currency;
+      const validCurrency = CURRENCY_OPTIONS.some(option => option.symbol === requestedCurrency);
+      if (strict && !validCurrency) throw new Error('Backup contains an unsupported currency setting.');
+      const currency = validCurrency ? requestedCurrency : defaults.currency;
+
+      return {
+        ...defaults,
+        ...parsed,
+        currency,
+        customOptions: parsed.customOptions && typeof parsed.customOptions === 'object' && !Array.isArray(parsed.customOptions)
+          ? parsed.customOptions
+          : {},
+        budget: {
+          ...defaults.budget,
+          ...parsedBudget,
+          profiles,
+          activeProfileId,
+          transactions,
+          transfers
+        },
+        period: { ...defaults.period, ...(parsed.period || {}) },
+        activity: { ...defaults.activity, ...(parsed.activity || {}) },
+        progress: { ...defaults.progress, ...(parsed.progress || {}) }
       };
     }
 
@@ -394,13 +533,28 @@
       return true;
     }
 
+    function removeCategoryOption(key, value) {
+      const group = CATEGORY_GROUPS[key];
+      const custom = state.customOptions && state.customOptions[key];
+      if (!group || group.defaults.includes(value) || !Array.isArray(custom) || !custom.includes(value)) {
+        showToast('That custom option could not be removed', 'warning');
+        return false;
+      }
+      state.customOptions[key] = custom.filter(option => option !== value);
+      if (!state.customOptions[key].length) delete state.customOptions[key];
+      saveState();
+      showToast(`Removed from ${group.label.toLowerCase()}`, 'success');
+      renderActiveView();
+      return true;
+    }
+
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return getDefaultState();
-        const parsed = JSON.parse(raw);
-        return { ...getDefaultState(), ...parsed };
+        return normalizeStateData(JSON.parse(raw));
       } catch (e) {
+        console.error('Could not load saved LifeFlow data.', e);
         return getDefaultState();
       }
     }
@@ -420,6 +574,15 @@
       budgetFilterType: 'all',
       budgetFilterCategory: 'all',
       budgetSearch: '',
+      budgetView: 'overview',
+      budgetProfileId: state.budget.activeProfileId,
+      budgetCalendarOffset: 0,
+      budgetSelectedDate: todayISO(),
+      budgetEntryDate: null,
+      budgetReportMode: 'month',
+      budgetReportDate: todayISO(),
+      budgetReportStart: `${todayISO().slice(0, 7)}-01`,
+      budgetReportEnd: todayISO(),
       todoFilterStatus: 'all',
       todoFilterPriority: 'all',
       todoSearch: '',
@@ -735,10 +898,48 @@
       const tx = state.budget.transactions;
       const income = tx.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
       const expense = tx.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
-      const balance = income - expense;
+      const openingBalance = getBudgetProfiles().reduce((sum, profile) => sum + Number(profile.openingBalance || 0), 0);
+      const balance = openingBalance + income - expense;
       const limit = Number(state.budget.monthlyLimit) || 0;
-      const limitUsedPct = limit > 0 ? Math.min(100, Math.round((expense / limit) * 100)) : 0;
-      return { income, expense, balance, limit, limitUsedPct };
+      const currentMonth = todayISO().slice(0, 7);
+      const monthExpense = tx.filter(t => t.type === 'expense' && typeof t.date === 'string' && t.date.startsWith(currentMonth))
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      const limitUsedPct = limit > 0 ? Math.min(100, Math.round((monthExpense / limit) * 100)) : 0;
+      return { income, expense, balance, limit, limitUsedPct, monthExpense };
+    }
+
+    function getBudgetProfiles() {
+      return Array.isArray(state.budget.profiles) ? state.budget.profiles : [];
+    }
+
+    function getBudgetProfile(profileId) {
+      return getBudgetProfiles().find(profile => profile.id === profileId);
+    }
+
+    function getVisibleBudgetTransactions() {
+      return state.budget.transactions.filter(transaction =>
+        uiState.budgetProfileId === 'all' || transaction.profileId === uiState.budgetProfileId
+      );
+    }
+
+    function getProfileBalance(profileId) {
+      const profile = getBudgetProfile(profileId);
+      if (!profile) return 0;
+      const transactionTotal = state.budget.transactions
+        .filter(transaction => transaction.profileId === profileId)
+        .reduce((balance, transaction) => balance + (transaction.type === 'income' ? 1 : -1) * Number(transaction.amount), 0);
+      const transferTotal = state.budget.transfers.reduce((balance, transfer) => {
+        if (transfer.toProfileId === profileId) return balance + Number(transfer.amount);
+        if (transfer.fromProfileId === profileId) return balance - Number(transfer.amount);
+        return balance;
+      }, 0);
+      return Number(profile.openingBalance || 0) + transactionTotal + transferTotal;
+    }
+
+    function formatMoney(amount) {
+      const option = CURRENCY_OPTIONS.find(currency => currency.symbol === state.currency);
+      const prefix = option && option.spaced ? `${state.currency} ` : state.currency;
+      return `${prefix}${Number(amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     }
 
     function getPeriodPrediction() {
@@ -1050,8 +1251,8 @@
                 <span class="dashboard-stat-label font-semibold uppercase text-slate-500 dark:text-slate-400">Net Balance</span>
                 <span class="dashboard-stat-icon p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"><i data-lucide="wallet" class="w-4 h-4"></i></span>
               </div>
-              <div class="dashboard-stat-value font-bold mt-3 tabular-nums">${state.currency}${b.balance.toLocaleString()}</div>
-              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">${b.limitUsedPct}% of ${state.currency}${b.limit.toLocaleString()} monthly limit</div>
+              <div class="dashboard-stat-value font-bold mt-3 tabular-nums">${formatMoney(b.balance)}</div>
+              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">${b.limitUsedPct}% of ${formatMoney(b.limit)} monthly limit</div>
             </button>
 
             <button data-jump="period" style="--card-accent: #f43f5e" class="dashboard-stat-card text-left border p-4 sm:p-5 transition">
@@ -1199,11 +1400,103 @@
     // 1. BUDGET TRACKER
     // -------------------------------------------------------------------------
     function renderBudget(container) {
-      const stats = getBudgetStats();
-      const filtered = state.budget.transactions
+      const profiles = getBudgetProfiles();
+      if (!profiles.some(profile => profile.id === uiState.budgetProfileId) && uiState.budgetProfileId !== 'all') {
+        uiState.budgetProfileId = state.budget.activeProfileId;
+      }
+      const selectedProfile = getBudgetProfile(uiState.budgetProfileId);
+      container.innerHTML = `
+        <div class="space-y-5">
+          <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Money overview</p>
+              <h2 class="text-lg font-bold mt-1">${uiState.budgetProfileId === 'all' ? 'All Profiles' : escapeHTML(selectedProfile ? selectedProfile.name : 'Personal')}</h2>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Financial profile</span>
+                <select id="budget-profile-select" class="w-full min-w-0 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  <option value="all" ${uiState.budgetProfileId === 'all' ? 'selected' : ''}>All profiles</option>
+                  ${profiles.map(profile => `<option value="${escapeHTML(profile.id)}" ${uiState.budgetProfileId === profile.id ? 'selected' : ''}>${escapeHTML(profile.name)}</option>`).join('')}
+                </select>
+              </label>
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Currency</span>
+                <select id="currency-select" class="w-full min-w-0 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  ${CURRENCY_OPTIONS.map(currency => `<option value="${escapeHTML(currency.symbol)}" ${state.currency === currency.symbol ? 'selected' : ''}>${escapeHTML(currency.label)} (${escapeHTML(currency.symbol)})</option>`).join('')}
+                </select>
+                <span class="block mt-1 text-[10px] font-normal text-slate-400">Display only; no conversion.</span>
+              </label>
+            </div>
+          </section>
+          <div class="flex flex-wrap gap-2" role="tablist" aria-label="Budget views">
+            ${[
+              ['overview', 'Overview'],
+              ['calendar', 'Calendar'],
+              ['reports', 'Reports'],
+              ['profiles', 'Profiles & Transfers']
+            ].map(([id, label]) => `<button type="button" data-budget-view="${id}" role="tab" aria-selected="${uiState.budgetView === id}" class="px-3 py-2 rounded-xl text-sm font-semibold ${uiState.budgetView === id ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}
+          </div>
+          <div id="budget-view-content"></div>
+        </div>
+      `;
+
+      document.getElementById('budget-profile-select').addEventListener('change', event => {
+        uiState.budgetProfileId = event.target.value;
+        if (event.target.value !== 'all') {
+          state.budget.activeProfileId = event.target.value;
+          saveState();
+        }
+        renderActiveView();
+      });
+      document.getElementById('currency-select').addEventListener('change', event => {
+        state.currency = event.target.value;
+        saveState();
+        renderActiveView();
+      });
+      container.querySelectorAll('[data-budget-view]').forEach(button => {
+        button.addEventListener('click', () => {
+          uiState.budgetView = button.getAttribute('data-budget-view');
+          renderActiveView();
+        });
+      });
+
+      const content = document.getElementById('budget-view-content');
+      if (uiState.budgetView === 'calendar') {
+        renderBudgetCalendar(content);
+      } else if (uiState.budgetView === 'reports') {
+        renderBudgetReports(content);
+      } else if (uiState.budgetView === 'profiles') {
+        renderBudgetProfiles(content);
+      } else {
+        renderBudgetOverview(content);
+      }
+    }
+
+    function renderBudgetOverview(container) {
+      const transactions = getVisibleBudgetTransactions();
+      const selectedProfile = uiState.budgetProfileId === 'all' ? null : getBudgetProfile(uiState.budgetProfileId);
+      const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+      const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
+      const balance = selectedProfile
+        ? getProfileBalance(selectedProfile.id)
+        : getBudgetProfiles().reduce((sum, profile) => sum + Number(profile.openingBalance || 0), 0) + income - expense;
+      const monthlyLimit = selectedProfile
+        ? Number(selectedProfile.monthlyLimit ?? state.budget.monthlyLimit) || 0
+        : Number(state.budget.monthlyLimit) || 0;
+      const monthExpense = transactions.filter(t => t.type === 'expense' && typeof t.date === 'string' && t.date.startsWith(todayISO().slice(0, 7)))
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      const stats = {
+        income,
+        expense,
+        balance,
+        limit: monthlyLimit,
+        limitUsedPct: monthlyLimit > 0 ? Math.min(100, Math.round((monthExpense / monthlyLimit) * 100)) : 0
+      };
+      const filtered = transactions
         .filter(t => uiState.budgetFilterType === 'all' || t.type === uiState.budgetFilterType)
         .filter(t => uiState.budgetFilterCategory === 'all' || t.category === uiState.budgetFilterCategory)
-        .filter(t => !uiState.budgetSearch || t.desc.toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || t.category.toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || (t.paymentMethod || '').toLowerCase().includes(uiState.budgetSearch.toLowerCase()))
+        .filter(t => !uiState.budgetSearch || String(t.desc || '').toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || String(t.category || '').toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || (t.paymentMethod || '').toLowerCase().includes(uiState.budgetSearch.toLowerCase()))
         .sort((a, b) => b.date.localeCompare(a.date));
 
       const categories = getCategoryOptions('budgetCategories');
@@ -1218,25 +1511,20 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Income</div>
-              <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2 tabular-nums">${state.currency}${stats.income.toLocaleString()}</div>
+              <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2 tabular-nums">${formatMoney(stats.income)}</div>
             </div>
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Expenses</div>
-              <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-2 tabular-nums">${state.currency}${stats.expense.toLocaleString()}</div>
+              <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-2 tabular-nums">${formatMoney(stats.expense)}</div>
             </div>
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Net Balance</div>
-              <div class="text-2xl font-bold mt-2 tabular-nums ${stats.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}">${state.currency}${stats.balance.toLocaleString()}</div>
+              <div class="text-2xl font-bold mt-2 tabular-nums ${stats.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}">${formatMoney(stats.balance)}</div>
             </div>
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Monthly Limit</span>
-                <select id="currency-select" class="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg px-2 py-0.5 font-semibold">
-                  ${['₹', '$', '€', '£'].map(c => `<option value="${c}" ${state.currency === c ? 'selected' : ''}>${c}</option>`).join('')}
-                </select>
-              </div>
+              <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Monthly Limit</span>
               <div class="flex items-center gap-2 mt-2">
-                <input id="budget-limit-input" type="number" min="0" value="${state.budget.monthlyLimit}" class="w-28 text-lg font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 tabular-nums" />
+                <input id="budget-limit-input" type="number" min="0" value="${stats.limit}" class="w-28 text-lg font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 tabular-nums" />
                 <button id="save-limit-btn" class="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Set</button>
               </div>
               <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
@@ -1260,6 +1548,12 @@
                 </label>
               </div>
               <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Profile</label>
+                <select id="tx-profile" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  ${getBudgetProfiles().map(profile => `<option value="${escapeHTML(profile.id)}" ${profile.id === (uiState.budgetProfileId === 'all' ? state.budget.activeProfileId : uiState.budgetProfileId) ? 'selected' : ''}>${escapeHTML(profile.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Amount (${state.currency})</label>
                 <input id="tx-amount" type="number" step="0.01" min="0.01" required placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
               </div>
@@ -1272,7 +1566,7 @@
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Date</label>
-                  <input id="tx-date" type="date" value="${todayISO()}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  <input id="tx-date" type="date" value="${escapeHTML(uiState.budgetEntryDate || todayISO())}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
                 </div>
               </div>
               <div>
@@ -1320,6 +1614,7 @@
                   <tr>
                     <th class="py-2.5 pr-4">Date</th>
                     <th class="py-2.5 pr-4">Description</th>
+                    <th class="py-2.5 pr-4">Profile</th>
                     <th class="py-2.5 pr-4">Category</th>
                     <th class="py-2.5 pr-4">Payment Method</th>
                     <th class="py-2.5 pr-4 text-right">Amount</th>
@@ -1329,12 +1624,13 @@
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                   ${filtered.map(t => `
                     <tr>
-                      <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">${t.date}</td>
+                      <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">${escapeHTML(t.date)}</td>
                       <td class="py-3 pr-4 font-medium">${escapeHTML(t.desc)}</td>
+                      <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">${escapeHTML((getBudgetProfile(t.profileId) || {}).name || 'Personal')}</td>
                       <td class="py-3 pr-4"><span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800">${escapeHTML(t.category)}</span></td>
                       <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">${escapeHTML(t.paymentMethod || 'Not specified')}</td>
                       <td class="py-3 pr-4 text-right font-semibold tabular-nums ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
-                        ${t.type === 'income' ? '+' : '-'}${state.currency}${Number(t.amount).toLocaleString()}
+                        ${t.type === 'income' ? '+' : '-'}${formatMoney(t.amount)}
                       </td>
                       <td class="py-3 text-right">
                         <div class="flex justify-end gap-1">
@@ -1347,7 +1643,7 @@
                         </div>
                       </td>
                     </tr>
-                  `).join('') || '<tr><td colspan="6" class="py-6 text-center text-slate-500">No matching transactions.</td></tr>'}
+                  `).join('') || '<tr><td colspan="7" class="py-6 text-center text-slate-500">No matching transactions.</td></tr>'}
                 </tbody>
               </table>
             </div>
@@ -1356,16 +1652,11 @@
       `;
 
       // Bindings
-      document.getElementById('currency-select').addEventListener('change', (e) => {
-        state.currency = e.target.value;
-        saveState();
-        renderActiveView();
-      });
-
       document.getElementById('save-limit-btn').addEventListener('click', () => {
         const val = Number(document.getElementById('budget-limit-input').value);
         if (val >= 0) {
-          state.budget.monthlyLimit = val;
+          if (selectedProfile) selectedProfile.monthlyLimit = val;
+          else state.budget.monthlyLimit = val;
           saveState();
           renderActiveView();
           showToast('Monthly budget limit updated', 'success');
@@ -1378,10 +1669,15 @@
         const amount = parseFloat(document.getElementById('tx-amount').value);
         const category = document.getElementById('tx-category').value;
         const paymentMethod = document.getElementById('tx-payment-method').value;
+        const profileId = document.getElementById('tx-profile').value;
         const date = document.getElementById('tx-date').value;
         const desc = document.getElementById('tx-desc').value.trim();
-        if (!amount || amount <= 0 || !desc) return;
-        state.budget.transactions.push({ id: uid(), type, amount, category, paymentMethod, date, desc });
+        if (!Number.isFinite(amount) || amount <= 0 || !desc || !isValidISODate(date) || !getBudgetProfile(profileId)) {
+          showToast('Enter a valid amount, date, profile, and description', 'warning');
+          return;
+        }
+        state.budget.transactions.push({ id: uid(), type, amount, category, paymentMethod, profileId, date, desc });
+        uiState.budgetEntryDate = null;
         saveState();
         renderActiveView();
         showToast('Transaction added', 'success');
@@ -1416,6 +1712,7 @@
           openRecordEditor('Edit Transaction', [
             { name: 'type', label: 'Type', type: 'select', value: transaction.type, options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] },
             { name: 'amount', label: `Amount (${state.currency})`, type: 'number', value: transaction.amount, min: 0.01, step: 0.01, required: true },
+            { name: 'profileId', label: 'Profile', type: 'select', value: transaction.profileId, options: getBudgetProfiles().map(profile => ({ value: profile.id, label: profile.name })) },
             { name: 'category', label: 'Category', type: 'select', value: transaction.category, options: transactionCategories.map(category => ({ value: category, label: category })) },
             { name: 'paymentMethod', label: 'Payment Method', type: 'select', value: transaction.paymentMethod || '', options: methodOptions },
             { name: 'date', label: 'Date', type: 'date', value: transaction.date, required: true },
@@ -1423,6 +1720,7 @@
           ], values => {
             transaction.type = values.type;
             transaction.amount = Number(values.amount);
+            transaction.profileId = values.profileId;
             transaction.category = values.category;
             transaction.paymentMethod = values.paymentMethod;
             transaction.date = values.date;
@@ -1446,7 +1744,7 @@
 
       // Render Chart.js Doughnut
       const expenseByCat = {};
-      state.budget.transactions.filter(t => t.type === 'expense').forEach(t => {
+      transactions.filter(t => t.type === 'expense').forEach(t => {
         expenseByCat[t.category] = (expenseByCat[t.category] || 0) + Number(t.amount);
       });
       const labels = Object.keys(expenseByCat);
@@ -1476,6 +1774,447 @@
       }
     }
 
+    function renderBudgetCalendar(container) {
+      const monthDate = new Date(new Date().getFullYear(), new Date().getMonth() + uiState.budgetCalendarOffset, 1);
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const monthTitle = monthDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstWeekday = new Date(year, month, 1).getDay();
+      const transactions = getVisibleBudgetTransactions();
+      const selectedDate = uiState.budgetSelectedDate || todayISO();
+      const dailyTotals = new Map();
+      transactions.forEach(transaction => {
+        const total = dailyTotals.get(transaction.date) || { income: 0, expense: 0 };
+        total[transaction.type] += Number(transaction.amount);
+        dailyTotals.set(transaction.date, total);
+      });
+      const cells = Array.from({ length: firstWeekday + daysInMonth }, (_, index) => {
+        if (index < firstWeekday) return '<div aria-hidden="true"></div>';
+        const day = index - firstWeekday + 1;
+        const date = formatDateISO(new Date(year, month, day));
+        const totals = dailyTotals.get(date) || { income: 0, expense: 0 };
+        const isSelected = date === selectedDate;
+        return `
+          <button type="button" data-budget-calendar-date="${date}" aria-label="${escapeHTML(date)}: ${formatMoney(totals.expense)} expenses, ${formatMoney(totals.income)} income" class="min-h-20 sm:min-h-24 rounded-xl border p-1.5 text-left flex flex-col ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'} ${date === todayISO() ? 'bg-indigo-50/70 dark:bg-indigo-950/30' : 'bg-white dark:bg-slate-900'}">
+            <span class="text-xs font-semibold">${day}</span>
+            ${totals.expense ? `<span class="mt-1 text-[10px] leading-tight text-rose-600">${formatMoney(totals.expense)}</span>` : ''}
+            ${totals.income ? `<span class="text-[10px] leading-tight text-emerald-600">${formatMoney(totals.income)}</span>` : ''}
+          </button>
+        `;
+      });
+      while (cells.length % 7) cells.push('<div aria-hidden="true"></div>');
+      const dayTransactions = transactions.filter(transaction => transaction.date === selectedDate)
+        .sort((a, b) => a.type.localeCompare(b.type));
+      const dayTransfers = state.budget.transfers.filter(transfer =>
+        transfer.date === selectedDate &&
+        (uiState.budgetProfileId === 'all' || transfer.fromProfileId === uiState.budgetProfileId || transfer.toProfileId === uiState.budgetProfileId)
+      );
+      const totals = dayTransactions.reduce((sum, transaction) => {
+        sum[transaction.type] += Number(transaction.amount);
+        return sum;
+      }, { income: 0, expense: 0 });
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <button type="button" id="budget-calendar-prev" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Previous month"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+              <h3 class="font-bold">${escapeHTML(monthTitle)}</h3>
+              <div class="flex items-center gap-1">
+                <button type="button" id="budget-calendar-today" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800">Today</button>
+                <button type="button" id="budget-calendar-next" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Next month"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+              </div>
+            </div>
+            <div class="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold text-slate-400 mb-1">
+              ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => `<div>${day}</div>`).join('')}
+            </div>
+            <div class="grid grid-cols-7 gap-1.5">${cells.join('')}</div>
+            <p class="mt-3 text-xs text-slate-500">Each date shows income and expenses for the selected profile.</p>
+          </section>
+          <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+              <div>
+                <h3 class="font-bold">${escapeHTML(new Date(`${selectedDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }))}</h3>
+                <p class="text-xs text-slate-500 mt-1">${dayTransactions.length} transaction${dayTransactions.length === 1 ? '' : 's'} · ${dayTransfers.length} transfer${dayTransfers.length === 1 ? '' : 's'}</p>
+              </div>
+              <div class="flex gap-3 text-xs font-semibold">
+                <span class="text-emerald-600">In ${formatMoney(totals.income)}</span>
+                <span class="text-rose-600">Out ${formatMoney(totals.expense)}</span>
+              </div>
+            </div>
+            <div class="divide-y divide-slate-100 dark:divide-slate-800">
+              ${dayTransactions.map(transaction => `
+                <div class="py-3 flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="font-medium text-sm truncate">${escapeHTML(transaction.desc)}</div>
+                    <div class="text-xs text-slate-500 mt-0.5">${escapeHTML(transaction.category || 'Other')} · ${escapeHTML(transaction.paymentMethod || 'Not specified')} · ${escapeHTML((getBudgetProfile(transaction.profileId) || {}).name || 'Personal')}</div>
+                  </div>
+                  <div class="shrink-0 text-sm font-semibold ${transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">${transaction.type === 'income' ? '+' : '−'}${formatMoney(transaction.amount)}</div>
+                </div>
+              `).join('') || '<p class="py-5 text-sm text-center text-slate-500">No transactions on this date.</p>'}
+              ${dayTransfers.map(transfer => `
+                <div class="py-3 flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="font-medium text-sm">${escapeHTML(transfer.desc || 'Profile transfer')}</div>
+                    <div class="text-xs text-slate-500 mt-0.5">${escapeHTML((getBudgetProfile(transfer.fromProfileId) || {}).name || 'Unknown')} → ${escapeHTML((getBudgetProfile(transfer.toProfileId) || {}).name || 'Unknown')}</div>
+                  </div>
+                  <div class="shrink-0 text-sm font-semibold text-indigo-600">${formatMoney(transfer.amount)}</div>
+                </div>
+              `).join('')}
+            </div>
+            <button type="button" data-budget-goto-view="overview" class="mt-3 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold">Add a transaction</button>
+          </section>
+        </div>
+      `;
+
+      const changeCalendarMonth = offset => {
+        const selectedDay = Number(uiState.budgetSelectedDate.slice(8, 10)) || 1;
+        const nextMonth = new Date(year, month + offset, 1);
+        const lastDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
+        uiState.budgetCalendarOffset += offset;
+        uiState.budgetSelectedDate = formatDateISO(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), Math.min(selectedDay, lastDay)));
+        renderActiveView();
+      };
+      document.getElementById('budget-calendar-prev').addEventListener('click', () => changeCalendarMonth(-1));
+      document.getElementById('budget-calendar-next').addEventListener('click', () => changeCalendarMonth(1));
+      document.getElementById('budget-calendar-today').addEventListener('click', () => {
+        uiState.budgetCalendarOffset = 0;
+        uiState.budgetSelectedDate = todayISO();
+        renderActiveView();
+      });
+      container.querySelectorAll('[data-budget-calendar-date]').forEach(button => {
+        button.addEventListener('click', () => {
+          uiState.budgetSelectedDate = button.getAttribute('data-budget-calendar-date');
+          renderActiveView();
+        });
+      });
+      container.querySelector('[data-budget-goto-view]').addEventListener('click', () => {
+        uiState.budgetView = 'overview';
+        uiState.budgetEntryDate = selectedDate;
+        document.querySelector('[data-nav-id="budget"]').click();
+      });
+    }
+
+    function renderBudgetReports(container) {
+      const mode = uiState.budgetReportMode;
+      let startDate = '';
+      let endDate = '';
+      if (mode === 'month') {
+        const month = uiState.budgetReportDate.slice(0, 7);
+        startDate = `${month}-01`;
+        const [year, monthNumber] = month.split('-').map(Number);
+        endDate = formatDateISO(new Date(year, monthNumber, 0));
+      } else if (mode === 'year') {
+        const year = uiState.budgetReportDate.slice(0, 4);
+        startDate = `${year}-01-01`;
+        endDate = `${year}-12-31`;
+      } else {
+        startDate = uiState.budgetReportStart;
+        endDate = uiState.budgetReportEnd;
+      }
+      const validRange = /^\d{4}-\d{2}-\d{2}$/.test(startDate) &&
+        /^\d{4}-\d{2}-\d{2}$/.test(endDate) && endDate >= startDate;
+      const transactions = validRange
+        ? getVisibleBudgetTransactions().filter(transaction => transaction.date >= startDate && transaction.date <= endDate)
+        : [];
+      const transfers = validRange
+        ? state.budget.transfers.filter(transfer =>
+          transfer.date >= startDate && transfer.date <= endDate &&
+          (uiState.budgetProfileId === 'all' || transfer.fromProfileId === uiState.budgetProfileId || transfer.toProfileId === uiState.budgetProfileId)
+        )
+        : [];
+      const income = transactions.filter(transaction => transaction.type === 'income').reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+      const expense = transactions.filter(transaction => transaction.type === 'expense').reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+      const byCategory = {};
+      const byPaymentMethod = {};
+      transactions.filter(transaction => transaction.type === 'expense').forEach(transaction => {
+        const category = transaction.category || 'Other';
+        const method = transaction.paymentMethod || 'Not specified';
+        byCategory[category] = (byCategory[category] || 0) + Number(transaction.amount);
+        byPaymentMethod[method] = (byPaymentMethod[method] || 0) + Number(transaction.amount);
+      });
+      const categoryEntries = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+      const totalTransferAmount = transfers.reduce((sum, transfer) => sum + Number(transfer.amount), 0);
+      const periodLabel = validRange
+        ? `${new Date(`${startDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(`${endDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+        : 'Choose a valid date range';
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <form id="budget-report-form" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Report period</span>
+                <select id="budget-report-mode" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  <option value="month" ${mode === 'month' ? 'selected' : ''}>Monthly</option>
+                  <option value="year" ${mode === 'year' ? 'selected' : ''}>Yearly</option>
+                  <option value="custom" ${mode === 'custom' ? 'selected' : ''}>Custom dates</option>
+                </select>
+              </label>
+              ${mode === 'month' ? `
+                <label class="block text-xs font-semibold text-slate-500 sm:col-span-2">
+                  <span class="block mb-1">Month</span>
+                  <input id="budget-report-month" type="month" value="${escapeHTML(uiState.budgetReportDate.slice(0, 7))}" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </label>
+              ` : mode === 'year' ? `
+                <label class="block text-xs font-semibold text-slate-500 sm:col-span-2">
+                  <span class="block mb-1">Year</span>
+                  <input id="budget-report-year" type="number" min="1900" max="2200" value="${escapeHTML(uiState.budgetReportDate.slice(0, 4))}" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </label>
+              ` : `
+                <label class="block text-xs font-semibold text-slate-500">
+                  <span class="block mb-1">From</span>
+                  <input id="budget-report-start" type="date" value="${escapeHTML(uiState.budgetReportStart)}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </label>
+                <label class="block text-xs font-semibold text-slate-500">
+                  <span class="block mb-1">To</span>
+                  <input id="budget-report-end" type="date" value="${escapeHTML(uiState.budgetReportEnd)}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </label>
+              `}
+              <button type="submit" class="py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">Show report</button>
+            </form>
+            <p class="text-xs text-slate-500 mt-3">${escapeHTML(periodLabel)} · ${transactions.length} transaction${transactions.length === 1 ? '' : 's'}</p>
+            ${!validRange ? '<p class="text-xs text-rose-600 mt-1">The end date must be on or after the start date.</p>' : ''}
+          </section>
+          ${validRange ? `
+            <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
+              <div class="rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 p-4"><div class="text-xs text-emerald-700 dark:text-emerald-300">Income</div><div class="text-lg font-bold mt-1">${formatMoney(income)}</div></div>
+              <div class="rounded-2xl bg-rose-50 dark:bg-rose-950/30 p-4"><div class="text-xs text-rose-700 dark:text-rose-300">Expenses</div><div class="text-lg font-bold mt-1">${formatMoney(expense)}</div></div>
+              <div class="rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 p-4"><div class="text-xs text-indigo-700 dark:text-indigo-300">Net</div><div class="text-lg font-bold mt-1">${formatMoney(income - expense)}</div></div>
+              <div class="rounded-2xl bg-slate-100 dark:bg-slate-800 p-4"><div class="text-xs text-slate-500">Transfers</div><div class="text-lg font-bold mt-1">${formatMoney(totalTransferAmount)}</div></div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+                <h3 class="font-bold mb-3">Expenses by category</h3>
+                ${categoryEntries.length ? `<div class="relative h-64"><canvas id="budget-report-chart"></canvas></div><div class="space-y-2 mt-3">${categoryEntries.map(([category, amount]) => `<div class="flex justify-between gap-2 text-sm"><span>${escapeHTML(category)}</span><strong>${formatMoney(amount)}</strong></div>`).join('')}</div>` : '<p class="text-sm text-slate-500">No expenses in this period.</p>'}
+              </section>
+              <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+                <h3 class="font-bold mb-3">Expenses by payment method</h3>
+                ${Object.entries(byPaymentMethod).sort((a, b) => b[1] - a[1]).map(([method, amount]) => `<div class="flex justify-between gap-2 py-2 border-b border-slate-100 dark:border-slate-800 text-sm"><span>${escapeHTML(method)}</span><strong>${formatMoney(amount)}</strong></div>`).join('') || '<p class="text-sm text-slate-500">No payment data in this period.</p>'}
+              </section>
+            </div>
+            <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+              <h3 class="font-bold mb-3">Transactions in period</h3>
+              <div class="divide-y divide-slate-100 dark:divide-slate-800">
+                ${transactions.slice().sort((a, b) => b.date.localeCompare(a.date)).map(transaction => `<div class="py-2.5 flex justify-between gap-3 text-sm"><span class="min-w-0"><span class="font-medium">${escapeHTML(transaction.date)} · ${escapeHTML(transaction.desc)}</span><span class="block text-xs text-slate-500">${escapeHTML(transaction.category || 'Other')} · ${escapeHTML((getBudgetProfile(transaction.profileId) || {}).name || 'Personal')}</span></span><strong class="shrink-0 ${transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">${transaction.type === 'income' ? '+' : '−'}${formatMoney(transaction.amount)}</strong></div>`).join('') || '<p class="py-4 text-sm text-center text-slate-500">No transactions in this period.</p>'}
+              </div>
+            </section>
+          ` : ''}
+        </div>
+      `;
+
+      document.getElementById('budget-report-mode').addEventListener('change', event => {
+        uiState.budgetReportMode = event.target.value;
+        renderActiveView();
+      });
+      const reportForm = document.getElementById('budget-report-form');
+      reportForm.addEventListener('submit', event => {
+        event.preventDefault();
+        if (mode === 'month') {
+          const value = document.getElementById('budget-report-month').value;
+          if (value) uiState.budgetReportDate = `${value}-01`;
+        } else if (mode === 'year') {
+          const value = document.getElementById('budget-report-year').value;
+          if (value && Number(value) >= 1900 && Number(value) <= 2200) uiState.budgetReportDate = `${value}-01-01`;
+        } else {
+          uiState.budgetReportStart = document.getElementById('budget-report-start').value;
+          uiState.budgetReportEnd = document.getElementById('budget-report-end').value;
+        }
+        renderActiveView();
+      });
+      if (categoryEntries.length && window.Chart) {
+        runtime.charts.budgetReport = new Chart(document.getElementById('budget-report-chart'), {
+          type: 'bar',
+          data: {
+            labels: categoryEntries.map(([category]) => category),
+            datasets: [{ label: 'Expenses', data: categoryEntries.map(([, amount]) => amount), backgroundColor: '#6366f1', borderRadius: 6 }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+      }
+    }
+
+    function renderBudgetProfiles(container) {
+      const profiles = getBudgetProfiles();
+      const defaultFrom = profiles.some(profile => profile.id === uiState.budgetProfileId)
+        ? uiState.budgetProfileId
+        : (getBudgetProfile(state.budget.activeProfileId) || profiles[0]).id;
+      const defaultTo = profiles.find(profile => profile.id !== defaultFrom)?.id || '';
+      const transfers = state.budget.transfers.slice().sort((a, b) => b.date.localeCompare(a.date));
+      container.innerHTML = `
+        <div class="space-y-4">
+          <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            ${profiles.map(profile => {
+              const hasRecords = state.budget.transactions.some(transaction => transaction.profileId === profile.id) ||
+                state.budget.transfers.some(transfer => transfer.fromProfileId === profile.id || transfer.toProfileId === profile.id);
+              return `
+                <article class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 class="font-bold">${escapeHTML(profile.name)}</h3>
+                      <p class="text-xs text-slate-500 mt-1">Starting balance ${formatMoney(profile.openingBalance)}</p>
+                    </div>
+                    <div class="flex gap-1">
+                      <button type="button" data-edit-profile="${escapeHTML(profile.id)}" class="px-2 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950">Edit</button>
+                      ${profiles.length > 1 && !hasRecords ? `<button type="button" data-delete-profile="${escapeHTML(profile.id)}" class="px-2 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950">Delete</button>` : ''}
+                    </div>
+                  </div>
+                  <div class="text-2xl font-bold mt-4">${formatMoney(getProfileBalance(profile.id))}</div>
+                  <div class="text-xs text-slate-500 mt-1">Current balance · includes transfers</div>
+                </article>
+              `;
+            }).join('')}
+          </section>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <form id="budget-profile-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+              <h3 class="font-bold">Add financial profile</h3>
+              <label class="block text-xs font-semibold text-slate-500">Profile name
+                <input name="name" maxlength="60" required class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" placeholder="e.g., Savings" />
+              </label>
+              <label class="block text-xs font-semibold text-slate-500">Starting balance (${escapeHTML(state.currency)})
+                <input name="openingBalance" type="number" step="0.01" value="0" required class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              </label>
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold">Create profile</button>
+            </form>
+            <form id="budget-transfer-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+              <h3 class="font-bold">Transfer between profiles</h3>
+              ${profiles.length < 2 ? '<p class="text-xs text-slate-500">Create another profile to enable transfers.</p>' : ''}
+              <div class="grid grid-cols-2 gap-3">
+                <label class="block text-xs font-semibold text-slate-500">From
+                  <select name="fromProfileId" required class="mt-1 w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    ${profiles.map(profile => `<option value="${escapeHTML(profile.id)}" ${profile.id === defaultFrom ? 'selected' : ''}>${escapeHTML(profile.name)}</option>`).join('')}
+                  </select>
+                </label>
+                <label class="block text-xs font-semibold text-slate-500">To
+                  <select name="toProfileId" required class="mt-1 w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    ${profiles.map(profile => `<option value="${escapeHTML(profile.id)}" ${profile.id === defaultTo ? 'selected' : ''}>${escapeHTML(profile.name)}</option>`).join('')}
+                  </select>
+                </label>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="block text-xs font-semibold text-slate-500">Amount (${escapeHTML(state.currency)})
+                  <input name="amount" type="number" min="0.01" step="0.01" required class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </label>
+                <label class="block text-xs font-semibold text-slate-500">Date
+                  <input name="date" type="date" value="${todayISO()}" required class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </label>
+              </div>
+              <label class="block text-xs font-semibold text-slate-500">Note
+                <input name="desc" maxlength="120" class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" placeholder="Optional" />
+              </label>
+              <button type="submit" ${profiles.length < 2 ? 'disabled' : ''} class="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">Save transfer</button>
+            </form>
+          </div>
+          <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <h3 class="font-bold mb-3">Transfer history</h3>
+            <div class="divide-y divide-slate-100 dark:divide-slate-800">
+              ${transfers.map(transfer => `
+                <div class="py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-medium">${escapeHTML(transfer.date)} · ${escapeHTML((getBudgetProfile(transfer.fromProfileId) || {}).name || 'Unknown')} → ${escapeHTML((getBudgetProfile(transfer.toProfileId) || {}).name || 'Unknown')}</div>
+                    <div class="text-xs text-slate-500 mt-0.5">${escapeHTML(transfer.desc || 'Profile transfer')}</div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <strong class="text-sm">${formatMoney(transfer.amount)}</strong>
+                    <button type="button" data-delete-transfer="${escapeHTML(transfer.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete transfer"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                  </div>
+                </div>
+              `).join('') || '<p class="py-4 text-sm text-slate-500">No transfers recorded.</p>'}
+            </div>
+          </section>
+        </div>
+      `;
+
+      document.getElementById('budget-profile-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const name = String(formData.get('name') || '').trim();
+        const openingBalance = Number(formData.get('openingBalance'));
+        if (!name || name.length > 60 || !Number.isFinite(openingBalance)) {
+          showToast('Enter a profile name and valid starting balance', 'warning');
+          return;
+        }
+        if (profiles.some(profile => profile.name.toLowerCase() === name.toLowerCase())) {
+          showToast('A profile with that name already exists', 'warning');
+          return;
+        }
+        const profile = { id: uid(), name, openingBalance };
+        state.budget.profiles.push(profile);
+        state.budget.activeProfileId = profile.id;
+        uiState.budgetProfileId = profile.id;
+        saveState();
+        renderActiveView();
+        showToast('Financial profile created', 'success');
+      });
+      document.getElementById('budget-transfer-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const fromProfileId = String(formData.get('fromProfileId') || '');
+        const toProfileId = String(formData.get('toProfileId') || '');
+        const amount = Number(formData.get('amount'));
+        const date = String(formData.get('date') || '');
+        const desc = String(formData.get('desc') || '').trim();
+        if (!getBudgetProfile(fromProfileId) || !getBudgetProfile(toProfileId) || fromProfileId === toProfileId ||
+            !Number.isFinite(amount) || amount <= 0 || !date) {
+          showToast('Choose two different profiles and enter a valid amount and date', 'warning');
+          return;
+        }
+        state.budget.transfers.push({ id: uid(), fromProfileId, toProfileId, amount, date, desc });
+        saveState();
+        renderActiveView();
+        showToast('Transfer recorded', 'success');
+      });
+      container.querySelectorAll('[data-edit-profile]').forEach(button => {
+        button.addEventListener('click', () => {
+          const profile = getBudgetProfile(button.getAttribute('data-edit-profile'));
+          if (!profile) return;
+          openRecordEditor('Edit Financial Profile', [
+            { name: 'name', label: 'Profile name', value: profile.name, required: true },
+            { name: 'openingBalance', label: `Starting balance (${state.currency})`, type: 'number', value: profile.openingBalance, step: 0.01, required: true }
+          ], values => {
+            const name = values.name.trim();
+            const openingBalance = Number(values.openingBalance);
+            if (!name || name.length > 60 || !Number.isFinite(openingBalance) ||
+                getBudgetProfiles().some(item => item.id !== profile.id && item.name.toLowerCase() === name.toLowerCase())) {
+              showToast('Choose a unique profile name and valid starting balance', 'warning');
+              return;
+            }
+            profile.name = name;
+            profile.openingBalance = openingBalance;
+            saveState();
+            renderActiveView();
+            showToast('Profile updated', 'success');
+          });
+        });
+      });
+      container.querySelectorAll('[data-delete-profile]').forEach(button => {
+        button.addEventListener('click', () => {
+          const profileId = button.getAttribute('data-delete-profile');
+          state.budget.profiles = state.budget.profiles.filter(profile => profile.id !== profileId);
+          if (state.budget.activeProfileId === profileId) state.budget.activeProfileId = state.budget.profiles[0].id;
+          uiState.budgetProfileId = state.budget.activeProfileId;
+          saveState();
+          renderActiveView();
+          showToast('Profile deleted', 'info');
+        });
+      });
+      container.querySelectorAll('[data-delete-transfer]').forEach(button => {
+        button.addEventListener('click', () => {
+          const transferId = button.getAttribute('data-delete-transfer');
+          state.budget.transfers = state.budget.transfers.filter(transfer => transfer.id !== transferId);
+          saveState();
+          renderActiveView();
+          showToast('Transfer deleted', 'info');
+        });
+      });
+    }
+
     // -------------------------------------------------------------------------
     // 2. PERIOD TRACKER
     // -------------------------------------------------------------------------
@@ -1495,14 +2234,14 @@
           .map(detail => [detail.date, detail])
       );
       const legacySymptoms = Array.isArray(log.symptoms) ? log.symptoms : [];
-      const legacyFlow = ['Light', 'Medium', 'Heavy'].includes(log.flow) ? log.flow : 'Medium';
+      const legacyFlow = typeof log.flow === 'string' && log.flow ? log.flow : 'Medium';
 
       return Array.from({ length: dayCount }, (_, index) => {
         const date = addDaysISO(startDate, index);
         const detail = byDate.get(date);
         return {
           date,
-          flow: detail && ['Light', 'Medium', 'Heavy'].includes(detail.flow) ? detail.flow : legacyFlow,
+          flow: detail && typeof detail.flow === 'string' && detail.flow ? detail.flow : legacyFlow,
           symptoms: detail && Array.isArray(detail.symptoms) ? detail.symptoms.filter(value => typeof value === 'string') : legacySymptoms,
           notes: detail && typeof detail.notes === 'string' ? detail.notes : (!hasDailyDetails && index === 0 ? (log.notes || '') : '')
         };
@@ -1522,9 +2261,16 @@
       }
 
       const byDate = new Map(existingDetails.map(detail => [detail.date, detail]));
+      const flowOptions = getCategoryOptions('periodFlows');
       return Array.from({ length: dayCount }, (_, index) => {
         const date = addDaysISO(startDate, index);
         const detail = byDate.get(date) || { flow: 'Medium', symptoms: [], notes: '' };
+        const detailFlow = typeof detail.flow === 'string' && detail.flow ? detail.flow : (flowOptions[0] || 'Medium');
+        const dayFlowOptions = flowOptions.includes(detailFlow) ? flowOptions : [detailFlow, ...flowOptions];
+        const daySymptoms = [...new Set([
+          ...symptomsList,
+          ...(Array.isArray(detail.symptoms) ? detail.symptoms.filter(symptom => typeof symptom === 'string') : [])
+        ])];
         const dayLabel = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
           weekday: 'long',
           month: 'short',
@@ -1535,13 +2281,13 @@
             <div class="flex items-center justify-between gap-3">
               <h4 class="text-sm font-semibold">${escapeHTML(dayLabel)}</h4>
               <select data-period-flow class="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" aria-label="Flow for ${escapeHTML(dayLabel)}">
-                ${['Light', 'Medium', 'Heavy'].map(flow => `<option value="${flow}" ${detail.flow === flow ? 'selected' : ''}>${flow}</option>`).join('')}
+                ${dayFlowOptions.map(flow => `<option value="${escapeHTML(flow)}" ${detailFlow === flow ? 'selected' : ''}>${escapeHTML(flow)}</option>`).join('')}
               </select>
             </div>
             <div>
               <div class="text-xs font-semibold text-slate-500 mb-1.5">Symptoms</div>
               <div class="flex flex-wrap gap-1.5">
-                ${symptomsList.map(symptom => `
+                ${daySymptoms.map(symptom => `
                   <label class="cursor-pointer">
                     <input type="checkbox" data-period-symptom value="${escapeHTML(symptom)}" ${(detail.symptoms || []).includes(symptom) ? 'checked' : ''} class="peer sr-only" />
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-700 peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 transition">${escapeHTML(symptom)}</span>
@@ -1583,7 +2329,7 @@
       const formStartDate = editingLog ? editingLog.startDate : today;
       const formEndDate = editingLog ? (editingLog.endDate || formStartDate) : addDaysISO(today, 4);
       const initialDailyDetails = getPeriodDailyDetails(editingLog);
-      const symptomsList = ['Cramps', 'Fatigue', 'Headache', 'Bloating', 'Mood Swings', 'Backache', 'Clear'];
+      const symptomsList = getCategoryOptions('periodSymptoms');
 
       // Build day status lookup
       const loggedDays = new Set();
@@ -2869,15 +3615,23 @@
       container.innerHTML = `
         <div class="space-y-5">
           <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
-            <h3 class="font-bold">Add your own options</h3>
-            <p class="text-sm text-slate-500 mt-1">Custom options appear in the matching forms and filters. They are saved on this device and included in backups.</p>
+            <h3 class="font-bold">Manage options</h3>
+            <p class="text-sm text-slate-500 mt-1">Add options for your forms. Remove only affects future entries; saved records stay unchanged. Built-in options cannot be removed.</p>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             ${Object.entries(CATEGORY_GROUPS).map(([key, group]) => `
               <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
                 <h3 class="font-semibold">${escapeHTML(group.label)}</h3>
                 <ul class="flex flex-wrap gap-2">
-                  ${getCategoryOptions(key).map(option => `<li class="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs">${escapeHTML(option)}</li>`).join('')}
+                  ${getCategoryOptions(key).map(option => {
+                    const isCustom = !group.defaults.includes(option);
+                    return `
+                      <li class="inline-flex items-center gap-2 rounded-full ${isCustom ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-200' : 'bg-slate-100 dark:bg-slate-800'} pl-3 ${isCustom ? 'pr-1' : 'pr-3'} py-1 text-xs">
+                        <span>${escapeHTML(option)}</span>
+                        ${isCustom ? `<button type="button" data-remove-category="${escapeHTML(key)}" data-remove-category-option="${escapeHTML(option)}" class="rounded-full px-2 py-1 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950 font-semibold" aria-label="Remove ${escapeHTML(option)}">Remove</button>` : ''}
+                      </li>
+                    `;
+                  }).join('')}
                 </ul>
                 <form data-category-form="${escapeHTML(key)}" class="flex gap-2">
                   <input type="text" maxlength="40" required placeholder="Add an option" aria-label="New ${escapeHTML(group.label.toLowerCase())}" class="min-w-0 flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
@@ -2893,6 +3647,28 @@
         form.addEventListener('submit', event => {
           event.preventDefault();
           addCategoryOption(form.getAttribute('data-category-form'), form.querySelector('input').value);
+        });
+      });
+
+      container.querySelectorAll('[data-remove-category]').forEach(button => {
+        button.addEventListener('click', () => {
+          const key = button.getAttribute('data-remove-category');
+          const value = button.getAttribute('data-remove-category-option');
+          const group = CATEGORY_GROUPS[key];
+          if (!group || group.defaults.includes(value)) return;
+          openModal({
+            title: 'Remove this custom option?',
+            body: `"${value}" will no longer appear in new entries. Existing records will stay unchanged.`,
+            icon: 'tags',
+            actions: [
+              { label: 'Cancel', className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800' },
+              {
+                label: 'Remove',
+                className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition',
+                onClick: () => removeCategoryOption(key, value)
+              }
+            ]
+          });
         });
       });
     }
@@ -2922,14 +3698,33 @@
     }
 
     function applyImportedState(parsed) {
-      if (!parsed || typeof parsed !== 'object' || !parsed.budget || !parsed.todos || !parsed.notes) {
-        throw new Error('Invalid LifeFlow backup format.');
-      }
-      state = { ...getDefaultState(), ...parsed };
+      state = normalizeStateData(parsed, true);
       saveState();
       applyTheme();
       renderNav();
       renderActiveView();
+    }
+
+    function confirmRestore(parsed, successMessage) {
+      openModal({
+        title: 'Replace data on this device?',
+        body: 'Restoring this backup will replace the data currently saved on this device. Export a backup first if you may need the current data.',
+        icon: 'download-cloud',
+        actions: [
+          { label: 'Cancel', className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800' },
+          {
+            label: 'Restore backup',
+            onClick: () => {
+              try {
+                applyImportedState(parsed);
+                showToast(successMessage, 'success');
+              } catch (error) {
+                showToast(error.message || 'Backup restore failed.', 'error');
+              }
+            }
+          }
+        ]
+      });
     }
 
     function copyTextFallback(text) {
@@ -2978,7 +3773,7 @@
                 Export from This Device
               </h3>
               <p class="text-xs text-slate-500 dark:text-slate-400">
-                Includes ${state.budget.transactions.length} transactions, ${state.period.logs.length} period logs, ${state.activity.logs.length} activities, ${state.progress.goals.length} goals, ${state.todos.length} tasks, ${state.notes.length} notes, and ${state.alarms.length} alarms.
+                Includes ${state.budget.transactions.length} transactions, ${state.budget.transfers.length} transfers, ${state.budget.profiles.length} financial profiles, ${state.period.logs.length} period logs, ${state.activity.logs.length} activities, ${state.progress.goals.length} goals, ${state.todos.length} tasks, ${state.notes.length} notes, and ${state.alarms.length} alarms.
               </p>
               <button id="download-json-btn" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center justify-center gap-2">
                 <i data-lucide="download" class="w-4 h-4"></i>
@@ -3000,6 +3795,7 @@
                 <i data-lucide="download-cloud" class="w-4 h-4 text-indigo-500"></i>
                 Import to This Device
               </h3>
+              <p class="text-xs text-amber-700 dark:text-amber-300">Restore replaces the data saved on this device. Export a backup first if you need to keep the current data.</p>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1.5">Upload Backup (.json)</label>
                 <input id="import-json-file" type="file" accept=".json,application/json" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-950 dark:file:text-indigo-300 hover:file:bg-indigo-100" />
@@ -3039,12 +3835,12 @@
         reader.onload = () => {
           try {
             const parsed = JSON.parse(String(reader.result));
-            applyImportedState(parsed);
-            showToast('Backup restored successfully!', 'success');
+            confirmRestore(parsed, 'Backup restored successfully!');
           } catch (err) {
-            showToast('Could not read backup file', 'error');
+            showToast(err.message || 'Could not read backup file.', 'error');
           }
         };
+        reader.onerror = () => showToast('Could not read backup file.', 'error');
         reader.readAsText(file);
       });
 
@@ -3056,10 +3852,9 @@
         }
         try {
           const parsed = decodeSyncCode(raw);
-          applyImportedState(parsed);
-          showToast('Data synced to this device!', 'success');
+          confirmRestore(parsed, 'Backup restored successfully!');
         } catch (err) {
-          showToast('Invalid sync code or JSON', 'error');
+          showToast(err.message || 'Invalid sync code or JSON.', 'error');
         }
       });
     }
