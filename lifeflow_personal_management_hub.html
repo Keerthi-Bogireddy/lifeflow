@@ -7,19 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#4f46e5" />
   <title>LifeFlow — Personal Management Hub</title>
-  <script src="./vendor/tailwindcss.browser.js" integrity="sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['system-ui', '-apple-system', 'sans-serif'],
-          },
-        },
-      },
-    };
-  </script>
+  <link rel="stylesheet" href="./lifeflow.generated.css" />
   <script src="./vendor/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4"></script>
   <script src="./vendor/lucide.min.js" integrity="sha384-ieG+IKD0d/ZPXyCBTMVAbqsQdns8QGJR/e26WMw7M4fkaI/rHcS/YIoi+ah9WGge"></script>
   <style>
@@ -309,7 +297,7 @@
       return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
     }
 
-    const ENTERTAINMENT_TYPES = ['Movie', 'Anime', 'Manhwa', 'Comic'];
+    const ENTERTAINMENT_TYPES = ['Movie', 'Anime', 'Manhwa','Series','Book'];
     const ENTERTAINMENT_STATUSES = ['Want to watch/read', 'In progress', 'Completed', 'Paused'];
 
     const CATEGORY_GROUPS = {
@@ -2858,7 +2846,7 @@
               </div>
               <label class="block text-xs font-semibold text-slate-500">
                 <span class="block mb-1">Name</span>
-                <input id="entertainment-title" type="text" maxlength="120" required value="${editing ? escapeHTML(editing.title) : ''}" placeholder="Enter movie, anime, manhwa, or comic name" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-normal" />
+                <input id="entertainment-title" type="text" maxlength="120" required value="${editing ? escapeHTML(editing.title) : ''}" placeholder=" Enter" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-normal" />
               </label>
               <label class="block text-xs font-semibold text-slate-500">
                 <span class="block mb-1">Type</span>

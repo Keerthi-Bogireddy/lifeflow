@@ -4,7 +4,7 @@
   "private": true,
   "description": "LifeFlow personal management hub for Android",
   "scripts": {
-    "build": "node scripts/copy-web-assets.mjs && cap sync android",
+    "build": "tailwindcss -c tailwind.config.cjs -i styles/tailwind.css -o lifeflow.generated.css --minify && node scripts/copy-web-assets.mjs && cap sync android",
     "android:debug": "npm run build && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
@@ -12,6 +12,7 @@
     "@capacitor/core": "^7.4.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.3"
+    "@capacitor/cli": "^7.4.3",
+    "tailwindcss": "3.4.17"
   }
 }

@@ -33,8 +33,8 @@ The Budget Tracker includes separate financial profiles, transfers between profi
 
 The Entertainment section tracks movies, anime, manhwa, and comics by title, type, and status. Its list is stored locally and included in manual backups.
 
-Bundled front-end libraries:
+Front-end libraries:
 
-- Tailwind CSS 3.4.17 (MIT)
+- Tailwind CSS 3.4.17 (MIT, compiled to CSS at build time)
 - Chart.js 4.4.1 (MIT)
 - Lucide 0.460.0 (ISC)
