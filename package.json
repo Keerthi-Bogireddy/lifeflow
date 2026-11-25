@@ -1,0 +1,17 @@
+{
+  "name": "lifeflow-personal-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LifeFlow personal management hub for Android",
+  "scripts": {
+    "build": "node scripts/copy-web-assets.mjs && cap sync android",
+    "android:debug": "npm run build && cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}

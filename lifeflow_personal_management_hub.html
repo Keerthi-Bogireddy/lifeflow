@@ -1,0 +1,2906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#4f46e5" />
+  <title>LifeFlow — Personal Management Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --app-accent: #6366f1;
+    }
+    html.dark { color-scheme: dark; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-image: radial-gradient(ellipse at top left, rgba(99, 102, 241, 0.06), transparent 34rem);
+    }
+    button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+    button { touch-action: manipulation; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.7; }
+      50% { transform: scale(1.03); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.7; }
+    }
+    .animate-pulse-ring { animation: pulse-ring 1.6s ease-in-out infinite; }
+    .dashboard-welcome {
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1.5rem;
+      overflow: hidden;
+      border-radius: 1.5rem;
+      padding: 1.75rem;
+      color: #fff;
+      background: linear-gradient(118deg, #4f46e5 0%, #6366f1 52%, #8b5cf6 100%);
+      box-shadow: 0 16px 36px rgba(79, 70, 229, 0.18);
+    }
+    .dashboard-welcome::after {
+      position: absolute;
+      top: -5rem;
+      right: 6rem;
+      width: 15rem;
+      height: 15rem;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 50%;
+      box-shadow: 0 0 0 2rem rgba(255, 255, 255, 0.045), 0 0 0 4rem rgba(255, 255, 255, 0.035);
+      content: '';
+      pointer-events: none;
+    }
+    .dashboard-stat-card {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      border-radius: 1.25rem;
+      border-color: rgba(148, 163, 184, 0.2);
+      background-color: #fff;
+      background: linear-gradient(145deg, #fff 0%, #fff 72%, color-mix(in srgb, var(--card-accent) 7%, white) 100%);
+      box-shadow: 0 5px 18px rgba(15, 23, 42, 0.035);
+    }
+    .dashboard-stat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); }
+    .dashboard-stat-label { font-size: 0.66rem; letter-spacing: 0.1em; }
+    .dashboard-stat-value { font-size: clamp(1.25rem, 3.8vw, 1.7rem); letter-spacing: -0.035em; }
+    .dashboard-stat-icon { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6); }
+    .mobile-bottom-nav { display: none; }
+    html.dark .dashboard-stat-card {
+      border-color: rgba(71, 85, 105, 0.65);
+      background-color: #0f172a;
+      background: linear-gradient(145deg, #0f172a 0%, #0f172a 72%, color-mix(in srgb, var(--card-accent) 13%, #0f172a) 100%);
+    }
+    @media (max-width: 767px) {
+      #main-content { padding-bottom: calc(6.25rem + env(safe-area-inset-bottom)); }
+      #toast-container { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+      .mobile-bottom-nav {
+        position: fixed;
+        z-index: 35;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        padding: 0.45rem 0.5rem calc(0.45rem + env(safe-area-inset-bottom));
+        border-top: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.07);
+        backdrop-filter: blur(18px);
+      }
+      .mobile-bottom-nav button {
+        display: flex;
+        min-height: 3.25rem;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+        border-radius: 0.9rem;
+        color: #64748b;
+        font-size: 0.65rem;
+        font-weight: 600;
+        transition: color 150ms ease, background 150ms ease;
+      }
+      .mobile-bottom-nav button.is-active { color: #4f46e5; background: #eef2ff; }
+      .mobile-bottom-nav button:active { transform: scale(0.96); }
+      html.dark .mobile-bottom-nav {
+        border-color: rgba(51, 65, 85, 0.8);
+        background: rgba(15, 23, 42, 0.94);
+        box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.22);
+      }
+      html.dark .mobile-bottom-nav button { color: #94a3b8; }
+      html.dark .mobile-bottom-nav button.is-active { color: #c7d2fe; background: rgba(49, 46, 129, 0.5); }
+      .dashboard-welcome { min-height: 9.5rem; padding: 1.35rem; }
+      .dashboard-welcome::after { right: -5rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col lg:flex-row transition-colors duration-200">
+
+  <!-- Mobile Top Header -->
+  <header class="lg:hidden sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-sm">
+        <i data-lucide="sparkles" class="w-4 h-4"></i>
+      </div>
+      <span class="font-bold text-lg tracking-tight">LifeFlow</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="mobile-time-pill" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+        <span id="mobile-time-pill-text" class="tabular-nums"></span>
+      </button>
+      <button id="mobile-theme-btn" aria-label="Toggle theme" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+        <i data-lucide="moon" class="w-5 h-5"></i>
+      </button>
+      <button id="mobile-menu-btn" aria-label="Open menu" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Sidebar Overlay (Mobile) -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-slate-900/50 z-40 hidden lg:hidden"></div>
+
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar" class="fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-200 shrink-0">
+    <div class="p-5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+          <i data-lucide="sparkles" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base leading-tight">LifeFlow</h1>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">Personal Hub</p>
+        </div>
+      </div>
+      <button id="close-sidebar-btn" class="lg:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <nav id="nav-list" class="flex-1 overflow-y-auto p-3 space-y-1">
+      <!-- Nav items rendered by JS -->
+    </nav>
+
+    <div class="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+      <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+        <span>Theme</span>
+        <button id="desktop-theme-btn" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium transition">
+          <i data-lucide="moon" class="w-3.5 h-3.5"></i>
+          <span id="theme-label">Dark</span>
+        </button>
+      </div>
+      <button id="reset-demo-btn" class="w-full text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 py-1.5 px-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition flex items-center justify-center gap-1.5">
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+        Clear All Data
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="flex-1 flex flex-col min-w-0">
+    <!-- Desktop Top Bar -->
+    <div class="hidden lg:flex sticky top-0 z-20 bg-slate-50/90 dark:bg-slate-950/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-8 py-4 items-center justify-between">
+      <div>
+        <h2 id="page-title" class="text-xl font-bold tracking-tight">Dashboard</h2>
+        <p id="live-date-display" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="desktop-time-pill" class="hidden items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition">
+          <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+          <span id="desktop-time-pill-text" class="tabular-nums"></span>
+        </button>
+        <div class="text-right">
+          <div id="live-clock-display" class="text-sm font-semibold tabular-nums"></div>
+          <div id="active-alarms-badge" class="text-[11px] text-slate-500 dark:text-slate-400"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main View Container -->
+    <main id="main-content" class="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+      <!-- Views injected dynamically -->
+    </main>
+  </div>
+
+  <nav id="mobile-bottom-nav" class="mobile-bottom-nav md:hidden" aria-label="Quick navigation"></nav>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- In-Page Confirm / Alert Modal -->
+  <div id="app-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
+      <div class="flex items-start gap-3">
+        <div id="modal-icon-wrap" class="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <i id="modal-icon" data-lucide="bell-ring" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 id="modal-title" class="text-base font-bold">Notice</h3>
+          <p id="modal-body" class="text-sm text-slate-600 dark:text-slate-300 mt-1"></p>
+        </div>
+      </div>
+      <div id="modal-actions" class="mt-6 flex items-center justify-end gap-2"></div>
+    </div>
+  </div>
+
+  <div id="record-editor-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="record-editor-title">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-xl">
+      <div class="flex items-center justify-between gap-4 mb-5">
+        <h3 id="record-editor-title" class="text-lg font-bold"></h3>
+        <button id="record-editor-close" type="button" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close editor">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="record-editor-form">
+        <div id="record-editor-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        <div class="mt-6 flex justify-end gap-2">
+          <button id="record-editor-cancel" type="button" class="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // STORAGE & INITIAL STATE
+    // =========================================================================
+    const STORAGE_KEY = 'lifeflow_personal_hub_v1';
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function todayISO() {
+      const d = new Date();
+      return formatDateISO(d);
+    }
+
+    function formatDateISO(d) {
+      const yr = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${yr}-${mo}-${da}`;
+    }
+
+    function addDaysISO(iso, days) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      dt.setDate(dt.getDate() + days);
+      return formatDateISO(dt);
+    }
+
+    function diffDaysISO(isoA, isoB) {
+      const [y1, m1, d1] = isoA.split('-').map(Number);
+      const [y2, m2, d2] = isoB.split('-').map(Number);
+      const a = new Date(y1, m1 - 1, d1);
+      const b = new Date(y2, m2 - 1, d2);
+      return Math.round((b - a) / 86400000);
+    }
+
+    function getDefaultState() {
+      return {
+        theme: 'light',
+        activeTab: 'dashboard',
+        currency: '₹',
+        budget: {
+          monthlyLimit: 45000,
+          transactions: []
+        },
+        period: {
+          cycleLength: 28,
+          periodLength: 5,
+          viewMonthOffset: 0,
+          logs: []
+        },
+        activity: {
+          weeklyGoalMinutes: 180,
+          logs: []
+        },
+        progress: {
+          goals: [],
+          habits: []
+        },
+        todos: [],
+        notes: [],
+        alarms: []
+      };
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return getDefaultState();
+        const parsed = JSON.parse(raw);
+        return { ...getDefaultState(), ...parsed };
+      } catch (e) {
+        return getDefaultState();
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        // Storage unavailable or full; in-memory state still works
+      }
+    }
+
+    let state = loadState();
+
+    // Ephemeral UI & Timer/Stopwatch/Alarm runtime state
+    const uiState = {
+      budgetFilterType: 'all',
+      budgetFilterCategory: 'all',
+      budgetSearch: '',
+      todoFilterStatus: 'all',
+      todoFilterPriority: 'all',
+      todoSearch: '',
+      noteSearch: '',
+      noteFilterTag: 'all',
+      editingNoteId: null,
+      timeSubTab: 'timer'
+    };
+
+    const runtime = {
+      timer: {
+        totalSeconds: 25 * 60,
+        remainingSeconds: 25 * 60,
+        running: false,
+        intervalId: null
+      },
+      stopwatch: {
+        elapsedMs: 0,
+        running: false,
+        lastTick: 0,
+        rafId: null,
+        laps: []
+      },
+      alarmCheckIntervalId: null,
+      lastTriggeredMinuteKey: null,
+      audioCtx: null,
+      ringingIntervalId: null,
+      charts: {}
+    };
+
+    // =========================================================================
+    // AUDIO SYNTHESIS (Web Audio API - no external audio files needed)
+    // =========================================================================
+    function getAudioCtx() {
+      if (!runtime.audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) runtime.audioCtx = new AudioContext();
+      }
+      if (runtime.audioCtx && runtime.audioCtx.state === 'suspended') {
+        runtime.audioCtx.resume().catch(() => {});
+      }
+      return runtime.audioCtx;
+    }
+
+    function playChimePattern() {
+      try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const freqs = [587.33, 783.99, 987.77];
+        freqs.forEach((f, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now + idx * 0.14);
+          gain.gain.setValueAtTime(0.001, now + idx * 0.14);
+          gain.gain.exponentialRampToValueAtTime(0.18, now + idx * 0.14 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.45);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.14);
+          osc.stop(now + idx * 0.14 + 0.46);
+        });
+      } catch (e) {}
+    }
+
+    function startRingingLoop() {
+      stopRingingLoop();
+      playChimePattern();
+      runtime.ringingIntervalId = setInterval(playChimePattern, 1800);
+    }
+
+    function stopRingingLoop() {
+      if (runtime.ringingIntervalId) {
+        clearInterval(runtime.ringingIntervalId);
+        runtime.ringingIntervalId = null;
+      }
+    }
+
+    // =========================================================================
+    // TOAST & IN-PAGE MODAL HELPERS
+    // =========================================================================
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const colors = {
+        info: 'bg-slate-900 text-white dark:bg-slate-800 border-slate-700',
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        warning: 'bg-amber-600 text-white border-amber-500',
+        error: 'bg-rose-600 text-white border-rose-500'
+      };
+      const el = document.createElement('div');
+      el.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center justify-between gap-3 transition-all duration-200 ${colors[type] || colors.info}`;
+      el.innerHTML = `<span>${escapeHTML(message)}</span>`;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 220);
+      }, 3000);
+    }
+
+    function openModal({ title, body, icon = 'bell-ring', actions = [] }) {
+      const modal = document.getElementById('app-modal');
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').textContent = body;
+      const iconEl = document.getElementById('modal-icon');
+      iconEl.setAttribute('data-lucide', icon);
+      const actionsEl = document.getElementById('modal-actions');
+      actionsEl.innerHTML = '';
+      actions.forEach(act => {
+        const btn = document.createElement('button');
+        btn.className = act.className || 'px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition';
+        btn.textContent = act.label;
+        btn.addEventListener('click', () => {
+          if (act.onClick) act.onClick();
+          closeModal();
+        });
+        actionsEl.appendChild(btn);
+      });
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('app-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      stopRingingLoop();
+    }
+
+    function escapeHTML(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderEditorField(field) {
+      const wrapperClass = field.wide ? 'sm:col-span-2' : '';
+      const inputClass = 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm';
+      const value = escapeHTML(field.value);
+      const required = field.required ? 'required' : '';
+      let control;
+
+      if (field.type === 'select') {
+        control = `<select name="${field.name}" class="${inputClass}" ${required}>
+          ${field.options.map(option => `
+            <option value="${escapeHTML(option.value)}" ${String(option.value) === String(field.value ?? '') ? 'selected' : ''}>${escapeHTML(option.label)}</option>
+          `).join('')}
+        </select>`;
+      } else if (field.type === 'textarea') {
+        control = `<textarea name="${field.name}" rows="${field.rows || 4}" class="${inputClass}" ${required}>${value}</textarea>`;
+      } else if (field.type === 'checkbox') {
+        control = `<label class="flex items-center gap-2 min-h-10 text-sm font-medium">
+          <input name="${field.name}" type="checkbox" class="w-4 h-4 rounded text-indigo-600" ${field.value ? 'checked' : ''} />
+          ${escapeHTML(field.checkboxLabel || field.label)}
+        </label>`;
+        return `<div class="${wrapperClass}">${control}</div>`;
+      } else {
+        control = `<input name="${field.name}" type="${field.type || 'text'}" value="${value}" class="${inputClass}"
+          ${field.min !== undefined ? `min="${field.min}"` : ''}
+          ${field.step !== undefined ? `step="${field.step}"` : ''}
+          ${required} />`;
+      }
+
+      return `<label class="${wrapperClass} block text-xs font-semibold text-slate-500">
+        <span class="block mb-1">${escapeHTML(field.label)}</span>
+        ${control}
+      </label>`;
+    }
+
+    function openRecordEditor(title, fields, onSave) {
+      const modal = document.getElementById('record-editor-modal');
+      const form = document.getElementById('record-editor-form');
+      document.getElementById('record-editor-title').textContent = title;
+      document.getElementById('record-editor-fields').innerHTML = fields.map(renderEditorField).join('');
+      form.onsubmit = (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(form).entries());
+        onSave(values);
+        closeRecordEditor();
+      };
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      modal.setAttribute('aria-hidden', 'false');
+      if (window.lucide) lucide.createIcons();
+      const firstField = form.querySelector('input:not([type="checkbox"]), select, textarea');
+      if (firstField) firstField.focus();
+    }
+
+    function closeRecordEditor() {
+      const modal = document.getElementById('record-editor-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      modal.setAttribute('aria-hidden', 'true');
+      document.getElementById('record-editor-form').onsubmit = null;
+    }
+
+    // =========================================================================
+    // NAVIGATION & THEME
+    // =========================================================================
+    const PAYMENT_METHODS = ['Cash', 'UPI', 'Debit card', 'Credit card', 'Net banking', 'Other'];
+    const NAV_ITEMS = [
+      { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', color: 'text-indigo-500' },
+      { id: 'budget', label: 'Budget Tracker', icon: 'wallet', color: 'text-emerald-500' },
+      { id: 'period', label: 'Period Tracker', icon: 'calendar-heart', color: 'text-rose-500' },
+      { id: 'activity', label: 'Activity Tracker', icon: 'activity', color: 'text-orange-500' },
+      { id: 'progress', label: 'Progress Trackers', icon: 'target', color: 'text-violet-500' },
+      { id: 'todos', label: 'To-Do List', icon: 'check-square', color: 'text-sky-500' },
+      { id: 'notes', label: 'Notes', icon: 'sticky-note', color: 'text-amber-500' },
+      { id: 'time', label: 'Timer, Stopwatch & Alarm', icon: 'timer', color: 'text-cyan-500' },
+      { id: 'sync', label: 'Sync & Backup', icon: 'refresh-cw', color: 'text-indigo-500' }
+    ];
+
+    function applyTheme() {
+      const isDark = state.theme === 'dark';
+      document.documentElement.classList.toggle('dark', isDark);
+      const label = document.getElementById('theme-label');
+      if (label) label.textContent = isDark ? 'Light' : 'Dark';
+    }
+
+    function toggleTheme() {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      saveState();
+      applyTheme();
+      renderActiveView();
+    }
+
+    function renderNav() {
+      const navList = document.getElementById('nav-list');
+      navList.innerHTML = NAV_ITEMS.map(item => {
+        const active = state.activeTab === item.id;
+        return `
+          <button data-nav-id="${item.id}" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+            active
+              ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-semibold'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
+          }">
+            <i data-lucide="${item.icon}" class="w-4 h-4 ${active ? 'text-indigo-600 dark:text-indigo-400' : item.color}"></i>
+            <span class="truncate">${item.label}</span>
+          </button>
+        `;
+      }).join('');
+
+      const mobileNav = document.getElementById('mobile-bottom-nav');
+      const quickItems = [
+        { id: 'dashboard', label: 'Home', icon: 'house' },
+        { id: 'budget', label: 'Budget', icon: 'wallet' },
+        { id: 'todos', label: 'Tasks', icon: 'check-square' }
+      ];
+      const isMoreActive = !quickItems.some(item => item.id === state.activeTab);
+      mobileNav.innerHTML = [
+        ...quickItems.map(item => `
+          <button type="button" data-mobile-nav="${item.id}" class="${state.activeTab === item.id ? 'is-active' : ''}" ${state.activeTab === item.id ? 'aria-current="page"' : ''}>
+            <i data-lucide="${item.icon}" class="w-5 h-5"></i>
+            <span>${item.label}</span>
+          </button>
+        `),
+        `<button type="button" data-mobile-nav-more class="${isMoreActive ? 'is-active' : ''}" ${isMoreActive ? 'aria-current="page"' : ''}>
+          <i data-lucide="menu" class="w-5 h-5"></i>
+          <span>More</span>
+        </button>`
+      ].join('');
+
+      navList.querySelectorAll('[data-nav-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.activeTab = btn.getAttribute('data-nav-id');
+          saveState();
+          closeMobileSidebar();
+          renderNav();
+          renderActiveView();
+        });
+      });
+      mobileNav.querySelectorAll('[data-mobile-nav]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.activeTab = btn.getAttribute('data-mobile-nav');
+          saveState();
+          renderNav();
+          renderActiveView();
+        });
+      });
+      mobileNav.querySelector('[data-mobile-nav-more]').addEventListener('click', openMobileSidebar);
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function openMobileSidebar() {
+      document.getElementById('sidebar').classList.remove('-translate-x-full');
+      document.getElementById('sidebar-backdrop').classList.remove('hidden');
+    }
+
+    function closeMobileSidebar() {
+      document.getElementById('sidebar').classList.add('-translate-x-full');
+      document.getElementById('sidebar-backdrop').classList.add('hidden');
+    }
+
+    // =========================================================================
+    // CHART CLEANUP
+    // =========================================================================
+    function destroyCharts() {
+      Object.values(runtime.charts).forEach(ch => {
+        if (ch && typeof ch.destroy === 'function') ch.destroy();
+      });
+      runtime.charts = {};
+    }
+
+    // =========================================================================
+    // CALCULATIONS & HELPERS
+    // =========================================================================
+    function getBudgetStats() {
+      const tx = state.budget.transactions;
+      const income = tx.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+      const expense = tx.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+      const balance = income - expense;
+      const limit = Number(state.budget.monthlyLimit) || 0;
+      const limitUsedPct = limit > 0 ? Math.min(100, Math.round((expense / limit) * 100)) : 0;
+      return { income, expense, balance, limit, limitUsedPct };
+    }
+
+    function getPeriodPrediction() {
+      const logs = [...state.period.logs].sort((a, b) => a.startDate.localeCompare(b.startDate));
+      const cycleLen = Number(state.period.cycleLength) || 28;
+      const periodLen = Number(state.period.periodLength) || 5;
+      const today = todayISO();
+      if (logs.length === 0) {
+        return { lastStart: null, nextStart: null, daysUntil: null, cycleDay: null, fertileStart: null, fertileEnd: null, ovulationDay: null, periodLen, cycleLen };
+      }
+      const lastStart = logs[logs.length - 1].startDate;
+      let nextStart = addDaysISO(lastStart, cycleLen);
+      while (nextStart < today) {
+        nextStart = addDaysISO(nextStart, cycleLen);
+      }
+      const daysUntil = diffDaysISO(today, nextStart);
+      const cycleDay = diffDaysISO(lastStart, today) + 1;
+      const ovulationDay = addDaysISO(nextStart, -14);
+      const fertileStart = addDaysISO(ovulationDay, -4);
+      const fertileEnd = addDaysISO(ovulationDay, 1);
+      return { lastStart, nextStart, daysUntil, cycleDay, fertileStart, fertileEnd, ovulationDay, periodLen, cycleLen };
+    }
+
+    function getActivityStats() {
+      const today = todayISO();
+      const weekStart = addDaysISO(today, -6);
+      const todayMins = state.activity.logs.filter(l => l.date === today).reduce((s, l) => s + Number(l.duration), 0);
+      const weekLogs = state.activity.logs.filter(l => l.date >= weekStart && l.date <= today);
+      const weekMins = weekLogs.reduce((s, l) => s + Number(l.duration), 0);
+      const weekCalories = weekLogs.reduce((s, l) => s + Number(l.calories), 0);
+      const goal = Number(state.activity.weeklyGoalMinutes) || 180;
+      const pct = goal > 0 ? Math.min(100, Math.round((weekMins / goal) * 100)) : 0;
+      return { todayMins, weekMins, weekCalories, goal, pct };
+    }
+
+    function getHabitStreak(habit) {
+      const set = new Set(habit.history || []);
+      let streak = 0;
+      let cursor = todayISO();
+      if (!set.has(cursor)) {
+        cursor = addDaysISO(cursor, -1);
+      }
+      while (set.has(cursor)) {
+        streak++;
+        cursor = addDaysISO(cursor, -1);
+      }
+      return streak;
+    }
+
+    function formatTimerSeconds(sec) {
+      const s = Math.max(0, Math.floor(sec));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = s % 60;
+      if (h > 0) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+      return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+    }
+
+    function formatStopwatchMs(ms) {
+      const totalCs = Math.floor(ms / 10);
+      const cs = totalCs % 100;
+      const totalSec = Math.floor(totalCs / 100);
+      const s = totalSec % 60;
+      const m = Math.floor(totalSec / 60) % 60;
+      const h = Math.floor(totalSec / 3600);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+    }
+
+    // =========================================================================
+    // LIVE CLOCK, TIMER, STOPWATCH & ALARM ENGINE
+    // =========================================================================
+    function updateLiveClockAndAlarms() {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const timeStr = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const dateEl = document.getElementById('live-date-display');
+      const clockEl = document.getElementById('live-clock-display');
+      const badgeEl = document.getElementById('active-alarms-badge');
+      if (dateEl) dateEl.textContent = dateStr;
+      if (clockEl) clockEl.textContent = timeStr;
+      const activeAlarms = state.alarms.filter(a => a.enabled).length;
+      if (badgeEl) badgeEl.textContent = activeAlarms > 0 ? `${activeAlarms} alarm${activeAlarms > 1 ? 's' : ''} active` : 'No active alarms';
+
+      // Update status pill if timer or stopwatch is running
+      const pillTexts = [];
+      if (runtime.timer.running) pillTexts.push(`Timer ${formatTimerSeconds(runtime.timer.remainingSeconds)}`);
+      if (runtime.stopwatch.running) pillTexts.push(`SW ${formatStopwatchMs(runtime.stopwatch.elapsedMs).slice(0, 8)}`);
+
+      const dPill = document.getElementById('desktop-time-pill');
+      const mPill = document.getElementById('mobile-time-pill');
+      const dText = document.getElementById('desktop-time-pill-text');
+      const mText = document.getElementById('mobile-time-pill-text');
+      if (pillTexts.length > 0) {
+        const txt = pillTexts.join(' • ');
+        if (dPill && dText) { dPill.classList.remove('hidden'); dPill.classList.add('inline-flex'); dText.textContent = txt; }
+        if (mPill && mText) { mPill.classList.remove('hidden'); mPill.classList.add('inline-flex'); mText.textContent = txt; }
+      } else {
+        if (dPill) { dPill.classList.add('hidden'); dPill.classList.remove('inline-flex'); }
+        if (mPill) { mPill.classList.add('hidden'); mPill.classList.remove('inline-flex'); }
+      }
+
+      // Update alarm live clock in Time view if visible
+      const alarmBigClock = document.getElementById('alarm-big-clock');
+      if (alarmBigClock) alarmBigClock.textContent = timeStr;
+
+      // Check alarms at exact HH:MM match once per minute
+      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const minuteKey = `${todayISO()}_${hhmm}`;
+      if (now.getSeconds() === 0 && runtime.lastTriggeredMinuteKey !== minuteKey) {
+        const matched = state.alarms.filter(a => a.enabled && a.time === hhmm);
+        if (matched.length > 0) {
+          runtime.lastTriggeredMinuteKey = minuteKey;
+          triggerAlarmModal(matched[0]);
+        }
+      }
+    }
+
+    function triggerAlarmModal(alarm) {
+      startRingingLoop();
+      openModal({
+        title: `Alarm: ${alarm.label || alarm.time}`,
+        body: `It's ${alarm.time}. Your scheduled alarm is ringing.`,
+        icon: 'alarm-clock',
+        actions: [
+          {
+            label: 'Snooze 5 min',
+            className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 transition',
+            onClick: () => {
+              const snoozeDate = new Date(Date.now() + 5 * 60000);
+              const snoozeTime = `${String(snoozeDate.getHours()).padStart(2, '0')}:${String(snoozeDate.getMinutes()).padStart(2, '0')}`;
+              state.alarms.push({ id: uid(), time: snoozeTime, label: `${alarm.label || 'Alarm'} (Snoozed)`, enabled: true, repeat: 'Once' });
+              saveState();
+              if (state.activeTab === 'time') renderActiveView();
+              showToast(`Snoozed until ${snoozeTime}`, 'info');
+            }
+          },
+          {
+            label: 'Dismiss',
+            className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition',
+            onClick: () => {
+              if (alarm.repeat === 'Once') {
+                alarm.enabled = false;
+                saveState();
+                if (state.activeTab === 'time') renderActiveView();
+              }
+            }
+          }
+        ]
+      });
+    }
+
+    function startTimer() {
+      if (runtime.timer.running) return;
+      if (runtime.timer.remainingSeconds <= 0) {
+        runtime.timer.remainingSeconds = runtime.timer.totalSeconds;
+      }
+      getAudioCtx();
+      runtime.timer.running = true;
+      if (runtime.timer.intervalId) clearInterval(runtime.timer.intervalId);
+      runtime.timer.intervalId = setInterval(() => {
+        runtime.timer.remainingSeconds--;
+        updateTimerDOM();
+        if (runtime.timer.remainingSeconds <= 0) {
+          pauseTimer();
+          startRingingLoop();
+          openModal({
+            title: 'Timer Complete!',
+            body: 'Your countdown timer has finished.',
+            icon: 'timer',
+            actions: [
+              {
+                label: 'Stop & Reset',
+                className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition',
+                onClick: () => {
+                  runtime.timer.remainingSeconds = runtime.timer.totalSeconds;
+                  updateTimerDOM();
+                }
+              }
+            ]
+          });
+        }
+      }, 1000);
+      updateTimerDOM();
+    }
+
+    function pauseTimer() {
+      runtime.timer.running = false;
+      if (runtime.timer.intervalId) {
+        clearInterval(runtime.timer.intervalId);
+        runtime.timer.intervalId = null;
+      }
+      updateTimerDOM();
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      runtime.timer.remainingSeconds = runtime.timer.totalSeconds;
+      updateTimerDOM();
+    }
+
+    function updateTimerDOM() {
+      const readout = document.getElementById('timer-readout');
+      const ring = document.getElementById('timer-ring-progress');
+      const toggleBtn = document.getElementById('timer-toggle-btn');
+      if (readout) readout.textContent = formatTimerSeconds(runtime.timer.remainingSeconds);
+      if (ring) {
+        const circumference = 2 * Math.PI * 88;
+        const pct = runtime.timer.totalSeconds > 0 ? runtime.timer.remainingSeconds / runtime.timer.totalSeconds : 0;
+        ring.style.strokeDasharray = `${circumference}`;
+        ring.style.strokeDashoffset = `${circumference * (1 - pct)}`;
+      }
+      if (toggleBtn) {
+        toggleBtn.textContent = runtime.timer.running ? 'Pause' : 'Start';
+      }
+    }
+
+    function startStopwatch() {
+      if (runtime.stopwatch.running) return;
+      runtime.stopwatch.running = true;
+      runtime.stopwatch.lastTick = performance.now();
+      if (runtime.stopwatch.rafId) cancelAnimationFrame(runtime.stopwatch.rafId);
+      const tick = (now) => {
+        if (!runtime.stopwatch.running) return;
+        runtime.stopwatch.elapsedMs += (now - runtime.stopwatch.lastTick);
+        runtime.stopwatch.lastTick = now;
+        const readout = document.getElementById('stopwatch-readout');
+        if (readout) readout.textContent = formatStopwatchMs(runtime.stopwatch.elapsedMs);
+        runtime.stopwatch.rafId = requestAnimationFrame(tick);
+      };
+      runtime.stopwatch.rafId = requestAnimationFrame(tick);
+      if (state.activeTab === 'time' && uiState.timeSubTab === 'stopwatch') renderTimeToolsSection();
+    }
+
+    function pauseStopwatch() {
+      runtime.stopwatch.running = false;
+      if (runtime.stopwatch.rafId) {
+        cancelAnimationFrame(runtime.stopwatch.rafId);
+        runtime.stopwatch.rafId = null;
+      }
+      if (state.activeTab === 'time' && uiState.timeSubTab === 'stopwatch') renderTimeToolsSection();
+    }
+
+    function resetStopwatch() {
+      pauseStopwatch();
+      runtime.stopwatch.elapsedMs = 0;
+      runtime.stopwatch.laps = [];
+      if (state.activeTab === 'time' && uiState.timeSubTab === 'stopwatch') renderTimeToolsSection();
+    }
+
+    // =========================================================================
+    // VIEW RENDERING
+    // =========================================================================
+    function renderActiveView() {
+      destroyCharts();
+      const navItem = NAV_ITEMS.find(n => n.id === state.activeTab) || NAV_ITEMS[0];
+      const titleEl = document.getElementById('page-title');
+      if (titleEl) titleEl.textContent = navItem.label;
+
+      const main = document.getElementById('main-content');
+      switch (state.activeTab) {
+        case 'dashboard': renderDashboard(main); break;
+        case 'budget': renderBudget(main); break;
+        case 'period': renderPeriod(main); break;
+        case 'activity': renderActivity(main); break;
+        case 'progress': renderProgress(main); break;
+        case 'todos': renderTodos(main); break;
+        case 'notes': renderNotes(main); break;
+        case 'time': renderTimeTools(main); break;
+        case 'sync': renderSync(main); break;
+        default: renderDashboard(main);
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------------------
+    // 0. DASHBOARD VIEW
+    // -------------------------------------------------------------------------
+    function renderDashboard(container) {
+      const b = getBudgetStats();
+      const p = getPeriodPrediction();
+      const a = getActivityStats();
+      const currentHour = new Date().getHours();
+      const greeting = currentHour < 12 ? 'morning' : currentHour < 17 ? 'afternoon' : 'evening';
+      const todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+      const pendingTodos = state.todos.filter(t => !t.done);
+      const avgGoalPct = state.progress.goals.length
+        ? Math.round(state.progress.goals.reduce((s, g) => s + Math.min(100, (g.current / (g.target || 1)) * 100), 0) / state.progress.goals.length)
+        : 0;
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <section class="dashboard-welcome">
+            <div class="relative z-10">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-100">Your personal hub</p>
+              <h2 class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight">Good ${greeting}</h2>
+              <p class="mt-1.5 text-sm text-indigo-100">A little progress adds up. Here's your day at a glance.</p>
+            </div>
+            <div class="relative z-10 hidden sm:flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-medium text-white/95 backdrop-blur">
+              <i data-lucide="calendar-days" class="w-4 h-4"></i>
+              <span>${todayLabel}</span>
+            </div>
+          </section>
+
+          <!-- KPI Grid -->
+          <div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+            <button data-jump="budget" style="--card-accent: #10b981" class="dashboard-stat-card text-left border p-4 sm:p-5 transition">
+              <div class="flex items-center justify-between">
+                <span class="dashboard-stat-label font-semibold uppercase text-slate-500 dark:text-slate-400">Net Balance</span>
+                <span class="dashboard-stat-icon p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"><i data-lucide="wallet" class="w-4 h-4"></i></span>
+              </div>
+              <div class="dashboard-stat-value font-bold mt-3 tabular-nums">${state.currency}${b.balance.toLocaleString()}</div>
+              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">${b.limitUsedPct}% of ${state.currency}${b.limit.toLocaleString()} monthly limit</div>
+            </button>
+
+            <button data-jump="period" style="--card-accent: #f43f5e" class="dashboard-stat-card text-left border p-4 sm:p-5 transition">
+              <div class="flex items-center justify-between">
+                <span class="dashboard-stat-label font-semibold uppercase text-slate-500 dark:text-slate-400">Cycle Status</span>
+                <span class="dashboard-stat-icon p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400"><i data-lucide="calendar-heart" class="w-4 h-4"></i></span>
+              </div>
+              <div class="dashboard-stat-value font-bold mt-3 tabular-nums">${p.cycleDay ? `Day ${p.cycleDay}` : 'No Logs'}</div>
+              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">${p.nextStart ? `Next in ${p.daysUntil} day${p.daysUntil === 1 ? '' : 's'}` : 'Log your last period'}</div>
+            </button>
+
+            <button data-jump="activity" style="--card-accent: #f97316" class="dashboard-stat-card text-left border p-4 sm:p-5 transition">
+              <div class="flex items-center justify-between">
+                <span class="dashboard-stat-label font-semibold uppercase text-slate-500 dark:text-slate-400">Weekly Activity</span>
+                <span class="dashboard-stat-icon p-2 rounded-xl bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400"><i data-lucide="activity" class="w-4 h-4"></i></span>
+              </div>
+              <div class="dashboard-stat-value font-bold mt-3 tabular-nums">${a.weekMins} <span class="text-sm font-semibold">min</span></div>
+              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">${a.pct}% of ${a.goal} min goal</div>
+            </button>
+
+            <button data-jump="progress" style="--card-accent: #8b5cf6" class="dashboard-stat-card text-left border p-4 sm:p-5 transition">
+              <div class="flex items-center justify-between">
+                <span class="dashboard-stat-label font-semibold uppercase text-slate-500 dark:text-slate-400">Goals & Tasks</span>
+                <span class="dashboard-stat-icon p-2 rounded-xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400"><i data-lucide="target" class="w-4 h-4"></i></span>
+              </div>
+              <div class="dashboard-stat-value font-bold mt-3 tabular-nums">${avgGoalPct}% <span class="text-sm font-semibold">avg</span></div>
+              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">${pendingTodos.length} tasks · ${state.notes.length} notes</div>
+            </button>
+          </div>
+
+          <!-- Two-Column Quick Overview -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Quick To-Dos -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                  <i data-lucide="check-square" class="w-4 h-4 text-sky-500"></i>
+                  Up Next (To-Do)
+                </h3>
+                <button data-jump="todos" class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">View all</button>
+              </div>
+              <div class="space-y-2">
+                ${pendingTodos.slice(0, 4).map(t => `
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <input type="checkbox" data-dash-todo="${t.id}" class="w-4 h-4 rounded text-indigo-600" />
+                      <span class="text-sm font-medium truncate">${escapeHTML(t.title)}</span>
+                    </div>
+                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                      t.priority === 'High' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' :
+                      t.priority === 'Medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
+                      'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                    }">${t.priority}</span>
+                  </label>
+                `).join('') || '<p class="text-sm text-slate-500 py-4 text-center">All caught up! No pending tasks.</p>'}
+              </div>
+            </div>
+
+            <!-- Today's Habits & Quick Timer -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between gap-4">
+              <div>
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="font-bold text-base flex items-center gap-2">
+                    <i data-lucide="flame" class="w-4 h-4 text-amber-500"></i>
+                    Today's Habits
+                  </h3>
+                  <button data-jump="progress" class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Manage</button>
+                </div>
+                <div class="space-y-2">
+                  ${state.progress.habits.map(h => {
+                    const doneToday = (h.history || []).includes(todayISO());
+                    const streak = getHabitStreak(h);
+                    return `
+                      <button data-dash-habit="${h.id}" class="w-full flex items-center justify-between p-3 rounded-xl border transition ${
+                        doneToday
+                          ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800'
+                          : 'bg-slate-50 border-slate-200 dark:bg-slate-800/60 dark:border-slate-700 hover:border-indigo-400'
+                      }">
+                        <div class="flex items-center gap-2.5">
+                          <span class="w-5 h-5 rounded-full flex items-center justify-center ${doneToday ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300 dark:border-slate-600'}">
+                            ${doneToday ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}
+                          </span>
+                          <span class="text-sm font-medium">${escapeHTML(h.title)}</span>
+                        </div>
+                        <span class="text-xs font-semibold text-amber-600 dark:text-amber-400">${streak}d streak</span>
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div class="text-xs text-slate-500 dark:text-slate-400">Need a focus timer, stopwatch, or alarm?</div>
+                <button data-jump="time" class="px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition inline-flex items-center gap-1.5">
+                  <i data-lucide="timer" class="w-3.5 h-3.5"></i> Open Time Tools
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.querySelectorAll('[data-jump]').forEach(el => {
+        el.addEventListener('click', () => {
+          state.activeTab = el.getAttribute('data-jump');
+          saveState();
+          renderNav();
+          renderActiveView();
+        });
+      });
+
+      container.querySelectorAll('[data-dash-todo]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const id = cb.getAttribute('data-dash-todo');
+          const t = state.todos.find(x => x.id === id);
+          if (t) {
+            t.done = cb.checked;
+            saveState();
+            renderActiveView();
+            showToast('Task updated', 'success');
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-dash-habit]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-dash-habit');
+          const h = state.progress.habits.find(x => x.id === id);
+          if (h) {
+            const today = todayISO();
+            h.history = h.history || [];
+            if (h.history.includes(today)) {
+              h.history = h.history.filter(d => d !== today);
+            } else {
+              h.history.push(today);
+            }
+            saveState();
+            renderActiveView();
+          }
+        });
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 1. BUDGET TRACKER
+    // -------------------------------------------------------------------------
+    function renderBudget(container) {
+      const stats = getBudgetStats();
+      const filtered = state.budget.transactions
+        .filter(t => uiState.budgetFilterType === 'all' || t.type === uiState.budgetFilterType)
+        .filter(t => uiState.budgetFilterCategory === 'all' || t.category === uiState.budgetFilterCategory)
+        .filter(t => !uiState.budgetSearch || t.desc.toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || t.category.toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || (t.paymentMethod || '').toLowerCase().includes(uiState.budgetSearch.toLowerCase()))
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+      const categories = ['Food', 'Housing', 'Transport', 'Utilities', 'Health', 'Entertainment', 'Shopping', 'Salary', 'Freelance', 'Other'];
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <!-- Summary Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Income</div>
+              <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2 tabular-nums">${state.currency}${stats.income.toLocaleString()}</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Expenses</div>
+              <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-2 tabular-nums">${state.currency}${stats.expense.toLocaleString()}</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Net Balance</div>
+              <div class="text-2xl font-bold mt-2 tabular-nums ${stats.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}">${state.currency}${stats.balance.toLocaleString()}</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Monthly Limit</span>
+                <select id="currency-select" class="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg px-2 py-0.5 font-semibold">
+                  ${['₹', '$', '€', '£'].map(c => `<option value="${c}" ${state.currency === c ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+              </div>
+              <div class="flex items-center gap-2 mt-2">
+                <input id="budget-limit-input" type="number" min="0" value="${state.budget.monthlyLimit}" class="w-28 text-lg font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 tabular-nums" />
+                <button id="save-limit-btn" class="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Set</button>
+              </div>
+              <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
+                <div class="h-full rounded-full ${stats.limitUsedPct > 90 ? 'bg-rose-500' : 'bg-emerald-500'}" style="width: ${stats.limitUsedPct}%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Add Transaction Form -->
+            <form id="budget-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 class="font-bold text-base">Add Transaction</h3>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="cursor-pointer">
+                  <input type="radio" name="tx-type" value="expense" checked class="peer sr-only" />
+                  <div class="text-center py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold peer-checked:bg-rose-50 peer-checked:border-rose-500 peer-checked:text-rose-700 dark:peer-checked:bg-rose-950/60 dark:peer-checked:text-rose-300 transition">Expense</div>
+                </label>
+                <label class="cursor-pointer">
+                  <input type="radio" name="tx-type" value="income" class="peer sr-only" />
+                  <div class="text-center py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 dark:peer-checked:bg-emerald-950/60 dark:peer-checked:text-emerald-300 transition">Income</div>
+                </label>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Amount (${state.currency})</label>
+                <input id="tx-amount" type="number" step="0.01" min="0.01" required placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Category</label>
+                  <select id="tx-category" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Date</label>
+                  <input id="tx-date" type="date" value="${todayISO()}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Payment Method</label>
+                <select id="tx-payment-method" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  ${PAYMENT_METHODS.map(method => `<option value="${method}" ${method === 'UPI' ? 'selected' : ''}>${method}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Description</label>
+                <input id="tx-desc" type="text" required placeholder="e.g., Grocery run" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              </div>
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition">Add Transaction</button>
+            </form>
+
+            <!-- Expense Breakdown Chart -->
+            <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+              <h3 class="font-bold text-base mb-4">Expense Breakdown by Category</h3>
+              <div class="relative h-64 flex-1">
+                <canvas id="budget-chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transactions Table -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h3 class="font-bold text-base">Transactions (${filtered.length})</h3>
+              <div class="flex flex-wrap items-center gap-2">
+                <input id="budget-search" type="text" value="${escapeHTML(uiState.budgetSearch)}" placeholder="Search..." class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                <select id="budget-filter-type" class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  <option value="all" ${uiState.budgetFilterType === 'all' ? 'selected' : ''}>All Types</option>
+                  <option value="expense" ${uiState.budgetFilterType === 'expense' ? 'selected' : ''}>Expenses</option>
+                  <option value="income" ${uiState.budgetFilterType === 'income' ? 'selected' : ''}>Income</option>
+                </select>
+                <select id="budget-filter-cat" class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  <option value="all">All Categories</option>
+                  ${categories.map(c => `<option value="${c}" ${uiState.budgetFilterCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm text-left">
+                <thead class="text-xs uppercase text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th class="py-2.5 pr-4">Date</th>
+                    <th class="py-2.5 pr-4">Description</th>
+                    <th class="py-2.5 pr-4">Category</th>
+                    <th class="py-2.5 pr-4">Payment Method</th>
+                    <th class="py-2.5 pr-4 text-right">Amount</th>
+                    <th class="py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                  ${filtered.map(t => `
+                    <tr>
+                      <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">${t.date}</td>
+                      <td class="py-3 pr-4 font-medium">${escapeHTML(t.desc)}</td>
+                      <td class="py-3 pr-4"><span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800">${escapeHTML(t.category)}</span></td>
+                      <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">${escapeHTML(t.paymentMethod || 'Not specified')}</td>
+                      <td class="py-3 pr-4 text-right font-semibold tabular-nums ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
+                        ${t.type === 'income' ? '+' : '-'}${state.currency}${Number(t.amount).toLocaleString()}
+                      </td>
+                      <td class="py-3 text-right">
+                        <div class="flex justify-end gap-1">
+                          <button data-edit-tx="${t.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition" aria-label="Edit transaction">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                          </button>
+                          <button data-del-tx="${t.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition" aria-label="Delete transaction">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('') || '<tr><td colspan="6" class="py-6 text-center text-slate-500">No matching transactions.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Bindings
+      document.getElementById('currency-select').addEventListener('change', (e) => {
+        state.currency = e.target.value;
+        saveState();
+        renderActiveView();
+      });
+
+      document.getElementById('save-limit-btn').addEventListener('click', () => {
+        const val = Number(document.getElementById('budget-limit-input').value);
+        if (val >= 0) {
+          state.budget.monthlyLimit = val;
+          saveState();
+          renderActiveView();
+          showToast('Monthly budget limit updated', 'success');
+        }
+      });
+
+      document.getElementById('budget-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const type = document.querySelector('input[name="tx-type"]:checked').value;
+        const amount = parseFloat(document.getElementById('tx-amount').value);
+        const category = document.getElementById('tx-category').value;
+        const paymentMethod = document.getElementById('tx-payment-method').value;
+        const date = document.getElementById('tx-date').value;
+        const desc = document.getElementById('tx-desc').value.trim();
+        if (!amount || amount <= 0 || !desc) return;
+        state.budget.transactions.push({ id: uid(), type, amount, category, paymentMethod, date, desc });
+        saveState();
+        renderActiveView();
+        showToast('Transaction added', 'success');
+      });
+
+      document.getElementById('budget-search').addEventListener('input', (e) => {
+        uiState.budgetSearch = e.target.value;
+        renderActiveView();
+      });
+      document.getElementById('budget-filter-type').addEventListener('change', (e) => {
+        uiState.budgetFilterType = e.target.value;
+        renderActiveView();
+      });
+      document.getElementById('budget-filter-cat').addEventListener('change', (e) => {
+        uiState.budgetFilterCategory = e.target.value;
+        renderActiveView();
+      });
+
+      container.querySelectorAll('[data-edit-tx]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const transaction = state.budget.transactions.find(t => t.id === btn.getAttribute('data-edit-tx'));
+          if (!transaction) return;
+          const transactionCategories = [...categories];
+          if (transaction.category && !transactionCategories.includes(transaction.category)) {
+            transactionCategories.push(transaction.category);
+          }
+          const methodOptions = [{ value: '', label: 'Not specified' }, ...PAYMENT_METHODS.map(method => ({ value: method, label: method }))];
+          if (transaction.paymentMethod && !PAYMENT_METHODS.includes(transaction.paymentMethod)) {
+            methodOptions.push({ value: transaction.paymentMethod, label: transaction.paymentMethod });
+          }
+          openRecordEditor('Edit Transaction', [
+            { name: 'type', label: 'Type', type: 'select', value: transaction.type, options: [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] },
+            { name: 'amount', label: `Amount (${state.currency})`, type: 'number', value: transaction.amount, min: 0.01, step: 0.01, required: true },
+            { name: 'category', label: 'Category', type: 'select', value: transaction.category, options: transactionCategories.map(category => ({ value: category, label: category })) },
+            { name: 'paymentMethod', label: 'Payment Method', type: 'select', value: transaction.paymentMethod || '', options: methodOptions },
+            { name: 'date', label: 'Date', type: 'date', value: transaction.date, required: true },
+            { name: 'desc', label: 'Description', value: transaction.desc, wide: true, required: true }
+          ], values => {
+            transaction.type = values.type;
+            transaction.amount = Number(values.amount);
+            transaction.category = values.category;
+            transaction.paymentMethod = values.paymentMethod;
+            transaction.date = values.date;
+            transaction.desc = values.desc.trim();
+            saveState();
+            renderActiveView();
+            showToast('Transaction updated', 'success');
+          });
+        });
+      });
+
+      container.querySelectorAll('[data-del-tx]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-tx');
+          state.budget.transactions = state.budget.transactions.filter(t => t.id !== id);
+          saveState();
+          renderActiveView();
+          showToast('Transaction removed', 'info');
+        });
+      });
+
+      // Render Chart.js Doughnut
+      const expenseByCat = {};
+      state.budget.transactions.filter(t => t.type === 'expense').forEach(t => {
+        expenseByCat[t.category] = (expenseByCat[t.category] || 0) + Number(t.amount);
+      });
+      const labels = Object.keys(expenseByCat);
+      const dataVals = Object.values(expenseByCat);
+      const canvas = document.getElementById('budget-chart');
+      if (canvas && window.Chart) {
+        runtime.charts.budget = new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: labels.length ? labels : ['No Expenses'],
+            datasets: [{
+              data: dataVals.length ? dataVals : [1],
+              backgroundColor: labels.length
+                ? ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b']
+                : ['#e2e8f0'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right', labels: { color: state.theme === 'dark' ? '#cbd5e1' : '#334155', boxWidth: 12 } }
+            }
+          }
+        });
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. PERIOD TRACKER
+    // -------------------------------------------------------------------------
+    function renderPeriod(container) {
+      const pred = getPeriodPrediction();
+      const now = new Date();
+      const viewDate = new Date(now.getFullYear(), now.getMonth() + state.period.viewMonthOffset, 1);
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      const monthName = viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      const firstDayIdx = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const today = todayISO();
+
+      // Build day status lookup
+      const loggedDays = new Set();
+      state.period.logs.forEach(log => {
+        let cur = log.startDate;
+        const end = log.endDate || addDaysISO(log.startDate, pred.periodLen - 1);
+        let guard = 0;
+        while (cur <= end && guard < 20) {
+          loggedDays.add(cur);
+          cur = addDaysISO(cur, 1);
+          guard++;
+        }
+      });
+
+      const predictedDays = new Set();
+      if (pred.nextStart) {
+        for (let i = 0; i < pred.periodLen; i++) {
+          predictedDays.add(addDaysISO(pred.nextStart, i));
+        }
+      }
+
+      const fertileDays = new Set();
+      if (pred.fertileStart && pred.fertileEnd) {
+        let cur = pred.fertileStart;
+        let guard = 0;
+        while (cur <= pred.fertileEnd && guard < 12) {
+          fertileDays.add(cur);
+          cur = addDaysISO(cur, 1);
+          guard++;
+        }
+      }
+
+      let calCells = '';
+      for (let i = 0; i < firstDayIdx; i++) {
+        calCells += `<div class="h-10"></div>`;
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isLogged = loggedDays.has(iso);
+        const isPredicted = predictedDays.has(iso);
+        const isOvulation = iso === pred.ovulationDay;
+        const isFertile = fertileDays.has(iso);
+        const isToday = iso === today;
+
+        let cellClass = 'bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300';
+        if (isLogged) cellClass = 'bg-rose-500 text-white font-bold shadow-sm';
+        else if (isPredicted) cellClass = 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-dashed border-rose-400 font-semibold';
+        else if (isOvulation) cellClass = 'bg-teal-500 text-white font-bold';
+        else if (isFertile) cellClass = 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800';
+
+        calCells += `
+          <div class="h-10 rounded-xl flex items-center justify-center text-xs relative ${cellClass} ${isToday ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-900' : ''}">
+            ${d}
+          </div>
+        `;
+      }
+
+      const symptomsList = ['Cramps', 'Fatigue', 'Headache', 'Bloating', 'Mood Swings', 'Backache', 'Clear'];
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <!-- Cycle Insights -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500">Current Cycle Day</div>
+              <div class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-2 tabular-nums">${pred.cycleDay ? `Day ${pred.cycleDay}` : '—'}</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500">Next Predicted Period</div>
+              <div class="text-xl font-bold mt-2 tabular-nums">${pred.nextStart || 'Log a period'}</div>
+              <div class="text-xs text-slate-500 mt-0.5">${pred.daysUntil !== null ? `In ${pred.daysUntil} day${pred.daysUntil === 1 ? '' : 's'}` : ''}</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500">Estimated Fertile Window</div>
+              <div class="text-sm font-bold text-teal-600 dark:text-teal-400 mt-2 tabular-nums">${pred.fertileStart ? `${pred.fertileStart} to ${pred.fertileEnd}` : '—'}</div>
+              <div class="text-xs text-slate-500 mt-0.5">${pred.ovulationDay ? `Ovulation: ${pred.ovulationDay}` : ''}</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-2">
+              <div class="text-xs font-semibold uppercase text-slate-500">Cycle Settings (Days)</div>
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-slate-500">Cycle:</label>
+                <input id="cycle-len-input" type="number" min="18" max="45" value="${state.period.cycleLength}" class="w-14 px-2 py-1 text-xs font-bold rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+                <label class="text-xs text-slate-500">Flow:</label>
+                <input id="period-len-input" type="number" min="2" max="12" value="${state.period.periodLength}" class="w-14 px-2 py-1 text-xs font-bold rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+                <button id="save-cycle-settings" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">Save</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Calendar -->
+            <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-base">${monthName}</h3>
+                <div class="flex items-center gap-1">
+                  <button id="period-prev-mo" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                  <button id="period-today-mo" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800">Today</button>
+                  <button id="period-next-mo" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                </div>
+              </div>
+              <div class="grid grid-cols-7 gap-2 text-center text-[11px] font-semibold text-slate-400 mb-2">
+                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+              </div>
+              <div class="grid grid-cols-7 gap-2">
+                ${calCells}
+              </div>
+              <div class="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-rose-500"></span> Logged Period</span>
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-rose-200 border border-dashed border-rose-500"></span> Predicted Period</span>
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-teal-100 border border-teal-400"></span> Fertile Window</span>
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-teal-500"></span> Ovulation</span>
+              </div>
+            </div>
+
+            <!-- Log Period Form -->
+            <form id="period-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 class="font-bold text-base">Log Period & Symptoms</h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Start Date</label>
+                  <input id="p-start" type="date" value="${today}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">End Date</label>
+                  <input id="p-end" type="date" value="${addDaysISO(today, 4)}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Flow Intensity</label>
+                <select id="p-flow" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  <option value="Light">Light</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="Heavy">Heavy</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Symptoms</label>
+                <div class="flex flex-wrap gap-1.5">
+                  ${symptomsList.map(sym => `
+                    <label class="cursor-pointer">
+                      <input type="checkbox" name="p-symptom" value="${sym}" class="peer sr-only" />
+                      <span class="inline-block px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-700 peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 transition">${sym}</span>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Notes</label>
+                <input id="p-notes" type="text" placeholder="Optional notes..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              </div>
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition">Save Log</button>
+            </form>
+          </div>
+
+          <!-- Cycle History -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+            <h3 class="font-bold text-base mb-3">Cycle History</h3>
+            <div class="space-y-2">
+              ${[...state.period.logs].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(l => `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <div>
+                    <div class="text-sm font-semibold tabular-nums">${l.startDate} → ${l.endDate} <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">${l.flow}</span></div>
+                    <div class="text-xs text-slate-500 mt-1">${(l.symptoms || []).join(', ') || 'No symptoms'}${l.notes ? ` • ${escapeHTML(l.notes)}` : ''}</div>
+                  </div>
+                  <div class="self-start sm:self-center flex gap-1">
+                    <button data-edit-period="${l.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit period log"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <button data-del-period="${l.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete period log"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                  </div>
+                </div>
+              `).join('') || '<p class="text-sm text-slate-500">No period logs yet.</p>'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('save-cycle-settings').addEventListener('click', () => {
+        const cl = Number(document.getElementById('cycle-len-input').value);
+        const pl = Number(document.getElementById('period-len-input').value);
+        if (cl >= 18 && cl <= 45 && pl >= 2 && pl <= 12) {
+          state.period.cycleLength = cl;
+          state.period.periodLength = pl;
+          saveState();
+          renderActiveView();
+          showToast('Cycle settings updated', 'success');
+        }
+      });
+
+      document.getElementById('period-prev-mo').addEventListener('click', () => { state.period.viewMonthOffset--; renderActiveView(); });
+      document.getElementById('period-next-mo').addEventListener('click', () => { state.period.viewMonthOffset++; renderActiveView(); });
+      document.getElementById('period-today-mo').addEventListener('click', () => { state.period.viewMonthOffset = 0; renderActiveView(); });
+
+      document.getElementById('period-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const startDate = document.getElementById('p-start').value;
+        const endDate = document.getElementById('p-end').value;
+        const flow = document.getElementById('p-flow').value;
+        const notes = document.getElementById('p-notes').value.trim();
+        const symptoms = Array.from(document.querySelectorAll('input[name="p-symptom"]:checked')).map(el => el.value);
+        if (!startDate) return;
+        state.period.logs.push({ id: uid(), startDate, endDate: endDate >= startDate ? endDate : startDate, flow, symptoms, notes });
+        saveState();
+        renderActiveView();
+        showToast('Period log saved', 'success');
+      });
+
+      container.querySelectorAll('[data-edit-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const log = state.period.logs.find(item => item.id === btn.getAttribute('data-edit-period'));
+          if (!log) return;
+          openRecordEditor('Edit Period Log', [
+            { name: 'startDate', label: 'Start Date', type: 'date', value: log.startDate, required: true },
+            { name: 'endDate', label: 'End Date', type: 'date', value: log.endDate, required: true },
+            { name: 'flow', label: 'Flow Intensity', type: 'select', value: log.flow, options: ['Light', 'Medium', 'Heavy'].map(value => ({ value, label: value })) },
+            { name: 'symptoms', label: 'Symptoms (comma-separated)', value: (log.symptoms || []).join(', '), wide: true },
+            { name: 'notes', label: 'Notes', type: 'textarea', value: log.notes || '', wide: true }
+          ], values => {
+            log.startDate = values.startDate;
+            log.endDate = values.endDate >= values.startDate ? values.endDate : values.startDate;
+            log.flow = values.flow;
+            log.symptoms = values.symptoms.split(',').map(value => value.trim()).filter(Boolean);
+            log.notes = values.notes.trim();
+            saveState();
+            renderActiveView();
+            showToast('Period log updated', 'success');
+          });
+        });
+      });
+
+      container.querySelectorAll('[data-del-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-period');
+          state.period.logs = state.period.logs.filter(l => l.id !== id);
+          saveState();
+          renderActiveView();
+          showToast('Period log deleted', 'info');
+        });
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. ACTIVITY TRACKER
+    // -------------------------------------------------------------------------
+    function renderActivity(container) {
+      const stats = getActivityStats();
+      const today = todayISO();
+      const last7Days = Array.from({ length: 7 }, (_, i) => addDaysISO(today, i - 6));
+      const dailyTotals = last7Days.map(d => state.activity.logs.filter(l => l.date === d).reduce((s, l) => s + Number(l.duration), 0));
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500">Today's Active Time</div>
+              <div class="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-2 tabular-nums">${stats.todayMins} min</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="text-xs font-semibold uppercase text-slate-500">7-Day Calories Burned</div>
+              <div class="text-2xl font-bold mt-2 tabular-nums">${stats.weekCalories.toLocaleString()} kcal</div>
+            </div>
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase text-slate-500">Weekly Goal</span>
+                <div class="flex items-center gap-1">
+                  <input id="act-goal-input" type="number" min="10" value="${state.activity.weeklyGoalMinutes}" class="w-16 px-2 py-0.5 text-xs font-bold rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+                  <button id="save-act-goal" class="px-2 py-0.5 rounded-lg bg-orange-600 text-white text-xs font-semibold">Set</button>
+                </div>
+              </div>
+              <div class="text-lg font-bold mt-2 tabular-nums">${stats.weekMins} / ${stats.goal} min (${stats.pct}%)</div>
+              <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full mt-2 overflow-hidden">
+                <div class="h-full bg-orange-500 rounded-full" style="width: ${stats.pct}%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <form id="activity-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 class="font-bold text-base">Log Activity</h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Activity</label>
+                  <select id="act-type" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    <option>Walking</option><option>Running</option><option>Cycling</option><option>Yoga</option><option>Gym</option><option>Swimming</option><option>Meditation</option><option>Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Intensity</label>
+                  <select id="act-intensity" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    <option>Low</option><option selected>Moderate</option><option>High</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Duration (min)</label>
+                  <input id="act-duration" type="number" min="1" required value="30" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Calories (kcal)</label>
+                  <input id="act-calories" type="number" min="0" required value="180" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Date</label>
+                <input id="act-date" type="date" value="${today}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Notes</label>
+                <input id="act-notes" type="text" placeholder="e.g., Evening jog" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              </div>
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm transition">Log Activity</button>
+            </form>
+
+            <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+              <h3 class="font-bold text-base mb-4">Last 7 Days Active Minutes</h3>
+              <div class="relative h-64 flex-1">
+                <canvas id="activity-chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+            <h3 class="font-bold text-base mb-3">Recent Activities</h3>
+            <div class="space-y-2">
+              ${[...state.activity.logs].sort((a, b) => b.date.localeCompare(a.date)).map(l => `
+                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <div>
+                    <div class="text-sm font-semibold">${escapeHTML(l.type)} • ${l.duration} min <span class="text-xs font-normal text-slate-500">(${l.calories} kcal • ${l.intensity})</span></div>
+                    <div class="text-xs text-slate-500 mt-0.5 tabular-nums">${l.date}${l.notes ? ` • ${escapeHTML(l.notes)}` : ''}</div>
+                  </div>
+                  <div class="flex gap-1">
+                    <button data-edit-act="${l.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit activity"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <button data-del-act="${l.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete activity"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                  </div>
+                </div>
+              `).join('') || '<p class="text-sm text-slate-500">No activities logged yet.</p>'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('save-act-goal').addEventListener('click', () => {
+        const g = Number(document.getElementById('act-goal-input').value);
+        if (g > 0) {
+          state.activity.weeklyGoalMinutes = g;
+          saveState();
+          renderActiveView();
+          showToast('Weekly activity goal updated', 'success');
+        }
+      });
+
+      document.getElementById('activity-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const type = document.getElementById('act-type').value;
+        const intensity = document.getElementById('act-intensity').value;
+        const duration = Number(document.getElementById('act-duration').value);
+        const calories = Number(document.getElementById('act-calories').value);
+        const date = document.getElementById('act-date').value;
+        const notes = document.getElementById('act-notes').value.trim();
+        if (!duration || duration <= 0) return;
+        state.activity.logs.push({ id: uid(), type, intensity, duration, calories, date, notes });
+        saveState();
+        renderActiveView();
+        showToast('Activity logged', 'success');
+      });
+
+      container.querySelectorAll('[data-edit-act]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const activity = state.activity.logs.find(item => item.id === btn.getAttribute('data-edit-act'));
+          if (!activity) return;
+          const activityTypes = ['Walking', 'Running', 'Cycling', 'Yoga', 'Gym', 'Swimming', 'Meditation', 'Other'];
+          if (!activityTypes.includes(activity.type)) activityTypes.push(activity.type);
+          const intensityOptions = ['Low', 'Moderate', 'High'];
+          if (!intensityOptions.includes(activity.intensity)) intensityOptions.push(activity.intensity);
+          openRecordEditor('Edit Activity', [
+            { name: 'type', label: 'Activity', type: 'select', value: activity.type, options: activityTypes.map(value => ({ value, label: value })) },
+            { name: 'intensity', label: 'Intensity', type: 'select', value: activity.intensity, options: intensityOptions.map(value => ({ value, label: value })) },
+            { name: 'duration', label: 'Duration (minutes)', type: 'number', value: activity.duration, min: 1, required: true },
+            { name: 'calories', label: 'Calories (kcal)', type: 'number', value: activity.calories, min: 0, required: true },
+            { name: 'date', label: 'Date', type: 'date', value: activity.date, required: true },
+            { name: 'notes', label: 'Notes', value: activity.notes || '', wide: true }
+          ], values => {
+            activity.type = values.type;
+            activity.intensity = values.intensity;
+            activity.duration = Number(values.duration);
+            activity.calories = Number(values.calories);
+            activity.date = values.date;
+            activity.notes = values.notes.trim();
+            saveState();
+            renderActiveView();
+            showToast('Activity updated', 'success');
+          });
+        });
+      });
+
+      container.querySelectorAll('[data-del-act]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-act');
+          state.activity.logs = state.activity.logs.filter(l => l.id !== id);
+          saveState();
+          renderActiveView();
+        });
+      });
+
+      const canvas = document.getElementById('activity-chart');
+      if (canvas && window.Chart) {
+        runtime.charts.activity = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: last7Days.map(d => d.slice(5)),
+            datasets: [{
+              label: 'Minutes',
+              data: dailyTotals,
+              backgroundColor: '#f97316',
+              borderRadius: 8
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { color: state.theme === 'dark' ? '#94a3b8' : '#64748b' } },
+              x: { ticks: { color: state.theme === 'dark' ? '#94a3b8' : '#64748b' } }
+            }
+          }
+        });
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. PROGRESS TRACKERS (GOALS & HABITS)
+    // -------------------------------------------------------------------------
+    function renderProgress(container) {
+      const today = todayISO();
+      const last7 = Array.from({ length: 7 }, (_, i) => addDaysISO(today, i - 6));
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <!-- Milestone Goals -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <form id="goal-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 class="font-bold text-base">New Progress Goal</h3>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Goal Title</label>
+                <input id="g-title" type="text" required placeholder="e.g., Complete Online Course" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              </div>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Current</label>
+                  <input id="g-current" type="number" min="0" value="0" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Target</label>
+                  <input id="g-target" type="number" min="1" value="10" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Unit</label>
+                  <input id="g-unit" type="text" value="modules" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Category</label>
+                  <select id="g-cat" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    <option>Personal</option><option>Finance</option><option>Fitness</option><option>Learning</option><option>Career</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Deadline</label>
+                  <input id="g-deadline" type="date" value="${addDaysISO(today, 30)}" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+              </div>
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm transition">Add Goal</button>
+            </form>
+
+            <div class="lg:col-span-2 space-y-3">
+              ${state.progress.goals.map(g => {
+                const pct = g.target > 0 ? Math.min(100, Math.round((g.current / g.target) * 100)) : 0;
+                const step = g.target >= 1000 ? 500 : 1;
+                return `
+                  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <h4 class="font-bold text-base">${escapeHTML(g.title)}</h4>
+                          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">${escapeHTML(g.category)}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">Target date: ${g.deadline || 'None'}</p>
+                      </div>
+                      <div class="flex gap-1">
+                        <button data-edit-goal="${g.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit goal"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button data-del-goal="${g.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete goal"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                      </div>
+                    </div>
+                    <div class="mt-4 flex items-center justify-between text-sm font-semibold tabular-nums">
+                      <span>${g.current.toLocaleString()} / ${g.target.toLocaleString()} ${escapeHTML(g.unit)}</span>
+                      <span class="text-violet-600 dark:text-violet-400">${pct}%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full mt-2 overflow-hidden">
+                      <div class="h-full bg-violet-600 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+                    </div>
+                    <div class="mt-3 flex items-center gap-2">
+                      <button data-goal-step="${g.id}" data-delta="${-step}" class="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700">-${step}</button>
+                      <button data-goal-step="${g.id}" data-delta="${step}" class="px-3 py-1 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700">+${step}</button>
+                    </div>
+                  </div>
+                `;
+              }).join('') || '<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-slate-500">No goals added yet.</div>'}
+            </div>
+          </div>
+
+          <!-- Daily Habit Streaks -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h3 class="font-bold text-base">Daily Habit Streaks (Last 7 Days)</h3>
+              <form id="habit-form" class="flex items-center gap-2">
+                <input id="habit-title-input" type="text" required placeholder="New daily habit..." class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                <button type="submit" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Add</button>
+              </form>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-xs text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                    <th class="text-left py-2 pr-4">Habit</th>
+                    ${last7.map(d => `<th class="text-center py-2 px-2 tabular-nums">${d.slice(5)}</th>`).join('')}
+                    <th class="text-right py-2 pl-4">Streak</th>
+                    <th class="text-right py-2 pl-2"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                  ${state.progress.habits.map(h => `
+                    <tr>
+                      <td class="py-3 pr-4 font-medium">${escapeHTML(h.title)}</td>
+                      ${last7.map(d => {
+                        const checked = (h.history || []).includes(d);
+                        return `
+                          <td class="py-3 px-2 text-center">
+                            <button data-toggle-habit="${h.id}" data-date="${d}" class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition ${
+                              checked ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200'
+                            }">
+                              ${checked ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
+                            </button>
+                          </td>
+                        `;
+                      }).join('')}
+                      <td class="py-3 pl-4 text-right font-bold text-amber-600 dark:text-amber-400 tabular-nums">${getHabitStreak(h)}d</td>
+                      <td class="py-3 pl-2 text-right">
+                        <button data-edit-habit="${h.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit habit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button data-del-habit="${h.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('goal-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = document.getElementById('g-title').value.trim();
+        const current = Number(document.getElementById('g-current').value);
+        const target = Number(document.getElementById('g-target').value);
+        const unit = document.getElementById('g-unit').value.trim();
+        const category = document.getElementById('g-cat').value;
+        const deadline = document.getElementById('g-deadline').value;
+        if (!title || target <= 0) return;
+        state.progress.goals.push({ id: uid(), title, current, target, unit, category, deadline });
+        saveState();
+        renderActiveView();
+        showToast('Goal added', 'success');
+      });
+
+      container.querySelectorAll('[data-edit-goal]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const goal = state.progress.goals.find(item => item.id === btn.getAttribute('data-edit-goal'));
+          if (!goal) return;
+          const categories = ['Personal', 'Finance', 'Fitness', 'Learning', 'Career'];
+          if (!categories.includes(goal.category)) categories.push(goal.category);
+          openRecordEditor('Edit Goal', [
+            { name: 'title', label: 'Goal Title', value: goal.title, wide: true, required: true },
+            { name: 'current', label: 'Current Progress', type: 'number', value: goal.current, min: 0, required: true },
+            { name: 'target', label: 'Target', type: 'number', value: goal.target, min: 1, required: true },
+            { name: 'unit', label: 'Unit', value: goal.unit, required: true },
+            { name: 'category', label: 'Category', type: 'select', value: goal.category, options: categories.map(value => ({ value, label: value })) },
+            { name: 'deadline', label: 'Deadline', type: 'date', value: goal.deadline || '' }
+          ], values => {
+            goal.title = values.title.trim();
+            goal.current = Number(values.current);
+            goal.target = Number(values.target);
+            goal.unit = values.unit.trim();
+            goal.category = values.category;
+            goal.deadline = values.deadline;
+            saveState();
+            renderActiveView();
+            showToast('Goal updated', 'success');
+          });
+        });
+      });
+
+      container.querySelectorAll('[data-goal-step]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-goal-step');
+          const delta = Number(btn.getAttribute('data-delta'));
+          const g = state.progress.goals.find(x => x.id === id);
+          if (g) {
+            g.current = Math.max(0, g.current + delta);
+            saveState();
+            renderActiveView();
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-del-goal]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-goal');
+          state.progress.goals = state.progress.goals.filter(g => g.id !== id);
+          saveState();
+          renderActiveView();
+        });
+      });
+
+      document.getElementById('habit-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = document.getElementById('habit-title-input').value.trim();
+        if (!title) return;
+        state.progress.habits.push({ id: uid(), title, history: [] });
+        saveState();
+        renderActiveView();
+        showToast('Habit added', 'success');
+      });
+
+      container.querySelectorAll('[data-edit-habit]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const habit = state.progress.habits.find(item => item.id === btn.getAttribute('data-edit-habit'));
+          if (!habit) return;
+          openRecordEditor('Edit Habit', [
+            { name: 'title', label: 'Habit Name', value: habit.title, wide: true, required: true }
+          ], values => {
+            habit.title = values.title.trim();
+            saveState();
+            renderActiveView();
+            showToast('Habit updated', 'success');
+          });
+        });
+      });
+
+      container.querySelectorAll('[data-toggle-habit]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-toggle-habit');
+          const dt = btn.getAttribute('data-date');
+          const h = state.progress.habits.find(x => x.id === id);
+          if (h) {
+            h.history = h.history || [];
+            if (h.history.includes(dt)) h.history = h.history.filter(x => x !== dt);
+            else h.history.push(dt);
+            saveState();
+            renderActiveView();
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-del-habit]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-habit');
+          state.progress.habits = state.progress.habits.filter(h => h.id !== id);
+          saveState();
+          renderActiveView();
+        });
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. TO-DO LIST
+    // -------------------------------------------------------------------------
+    function renderTodos(container) {
+      const total = state.todos.length;
+      const doneCount = state.todos.filter(t => t.done).length;
+      const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+      const todoCategories = ['Work', 'Personal', 'Finance', 'Health', 'Learning', 'Other'];
+
+      const filtered = state.todos
+        .filter(t => uiState.todoFilterStatus === 'all' || (uiState.todoFilterStatus === 'active' ? !t.done : t.done))
+        .filter(t => uiState.todoFilterPriority === 'all' || t.priority === uiState.todoFilterPriority)
+        .filter(t => !uiState.todoSearch || t.title.toLowerCase().includes(uiState.todoSearch.toLowerCase()));
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between text-sm font-semibold mb-2">
+              <span>Completion Progress (${doneCount} of ${total} tasks)</span>
+              <span class="text-sky-600 dark:text-sky-400 tabular-nums">${pct}%</span>
+            </div>
+            <div class="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+              <div class="h-full bg-sky-500 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+            </div>
+          </div>
+
+          <form id="todo-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+            <div class="lg:col-span-2">
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Task Title</label>
+              <input id="todo-title" type="text" required placeholder="What needs to be done?" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Priority</label>
+              <select id="todo-priority" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                <option>High</option><option selected>Medium</option><option>Low</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Category</label>
+              <select id="todo-category" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                ${todoCategories.map(category => `<option ${category === 'Personal' ? 'selected' : ''}>${category}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Due Date</label>
+              <input id="todo-due" type="date" value="${todayISO()}" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+            </div>
+            <button type="submit" class="py-2 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm transition">Add Task</button>
+          </form>
+
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-1.5">
+                ${['all', 'active', 'completed'].map(st => `
+                  <button data-todo-status="${st}" class="px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition ${
+                    uiState.todoFilterStatus === st ? 'bg-sky-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }">${st}</button>
+                `).join('')}
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <input id="todo-search" type="text" value="${escapeHTML(uiState.todoSearch)}" placeholder="Search tasks..." class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                <select id="todo-filter-prio" class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  <option value="all">All Priorities</option>
+                  <option value="High" ${uiState.todoFilterPriority === 'High' ? 'selected' : ''}>High</option>
+                  <option value="Medium" ${uiState.todoFilterPriority === 'Medium' ? 'selected' : ''}>Medium</option>
+                  <option value="Low" ${uiState.todoFilterPriority === 'Low' ? 'selected' : ''}>Low</option>
+                </select>
+                <button id="clear-completed-todos" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40">Clear Completed</button>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              ${filtered.map(t => `
+                <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <label class="flex items-center gap-3 min-w-0 cursor-pointer flex-1">
+                    <input type="checkbox" data-toggle-todo="${t.id}" ${t.done ? 'checked' : ''} class="w-4 h-4 rounded text-sky-600" />
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium truncate ${t.done ? 'line-through text-slate-400' : ''}">${escapeHTML(t.title)}</div>
+                      <div class="text-xs text-slate-500 tabular-nums">${t.dueDate ? `Due: ${t.dueDate}` : 'No due date'}</div>
+                    </div>
+                  </label>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                      t.priority === 'High' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' :
+                      t.priority === 'Medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
+                      'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                    }">${t.priority}</span>
+                    <button data-edit-todo="${t.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit task"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <button data-del-todo="${t.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                  </div>
+                </div>
+              `).join('') || '<p class="text-sm text-slate-500 text-center py-6">No tasks match your filter.</p>'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('todo-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = document.getElementById('todo-title').value.trim();
+        const priority = document.getElementById('todo-priority').value;
+        const category = document.getElementById('todo-category').value;
+        const dueDate = document.getElementById('todo-due').value;
+        if (!title) return;
+        state.todos.unshift({ id: uid(), title, priority, category, dueDate, done: false });
+        saveState();
+        renderActiveView();
+        showToast('Task added', 'success');
+      });
+
+      container.querySelectorAll('[data-todo-status]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          uiState.todoFilterStatus = btn.getAttribute('data-todo-status');
+          renderActiveView();
+        });
+      });
+
+      document.getElementById('todo-search').addEventListener('input', (e) => {
+        uiState.todoSearch = e.target.value;
+        renderActiveView();
+      });
+      document.getElementById('todo-filter-prio').addEventListener('change', (e) => {
+        uiState.todoFilterPriority = e.target.value;
+        renderActiveView();
+      });
+      container.querySelectorAll('[data-edit-todo]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const task = state.todos.find(item => item.id === btn.getAttribute('data-edit-todo'));
+          if (!task) return;
+          if (task.category && !todoCategories.includes(task.category)) todoCategories.push(task.category);
+          openRecordEditor('Edit Task', [
+            { name: 'title', label: 'Task Title', value: task.title, wide: true, required: true },
+            { name: 'priority', label: 'Priority', type: 'select', value: task.priority, options: ['High', 'Medium', 'Low'].map(value => ({ value, label: value })) },
+            { name: 'category', label: 'Category', type: 'select', value: task.category || 'Personal', options: todoCategories.map(value => ({ value, label: value })) },
+            { name: 'dueDate', label: 'Due Date', type: 'date', value: task.dueDate || '' },
+            { name: 'done', label: 'Completed', type: 'checkbox', value: task.done, checkboxLabel: 'Mark this task as completed', wide: true }
+          ], values => {
+            task.title = values.title.trim();
+            task.priority = values.priority;
+            task.category = values.category;
+            task.dueDate = values.dueDate;
+            task.done = values.done === 'on';
+            saveState();
+            renderActiveView();
+            showToast('Task updated', 'success');
+          });
+        });
+      });
+      document.getElementById('clear-completed-todos').addEventListener('click', () => {
+        state.todos = state.todos.filter(t => !t.done);
+        saveState();
+        renderActiveView();
+        showToast('Cleared completed tasks', 'info');
+      });
+
+      container.querySelectorAll('[data-toggle-todo]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const id = cb.getAttribute('data-toggle-todo');
+          const t = state.todos.find(x => x.id === id);
+          if (t) {
+            t.done = cb.checked;
+            saveState();
+            renderActiveView();
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-del-todo]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-todo');
+          state.todos = state.todos.filter(t => t.id !== id);
+          saveState();
+          renderActiveView();
+        });
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. NOTES
+    // -------------------------------------------------------------------------
+    function renderNotes(container) {
+      const editing = uiState.editingNoteId ? state.notes.find(n => n.id === uiState.editingNoteId) : null;
+      const filtered = [...state.notes]
+        .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updatedAt.localeCompare(a.updatedAt))
+        .filter(n => uiState.noteFilterTag === 'all' || n.tag === uiState.noteFilterTag)
+        .filter(n => !uiState.noteSearch || n.title.toLowerCase().includes(uiState.noteSearch.toLowerCase()) || n.content.toLowerCase().includes(uiState.noteSearch.toLowerCase()));
+
+      const colorMap = {
+        amber: 'border-l-4 border-l-amber-400',
+        indigo: 'border-l-4 border-l-indigo-500',
+        emerald: 'border-l-4 border-l-emerald-500',
+        rose: 'border-l-4 border-l-rose-500'
+      };
+
+      container.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <form id="note-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 h-fit">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-base">${editing ? 'Edit Note' : 'New Note'}</h3>
+              ${editing ? '<button type="button" id="cancel-edit-note" class="text-xs text-slate-500 hover:underline">Cancel</button>' : ''}
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Title</label>
+              <input id="note-title" type="text" required value="${editing ? escapeHTML(editing.title) : ''}" placeholder="Note title..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Tag</label>
+                <select id="note-tag" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  ${['Personal', 'Work', 'Ideas', 'Health', 'Journal'].map(tg => `<option value="${tg}" ${editing && editing.tag === tg ? 'selected' : ''}>${tg}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Accent</label>
+                <select id="note-color" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  ${['amber', 'indigo', 'emerald', 'rose'].map(c => `<option value="${c}" ${editing && editing.color === c ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Content</label>
+              <textarea id="note-content" rows="6" required placeholder="Write your note here..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">${editing ? escapeHTML(editing.content) : ''}</textarea>
+            </div>
+            <button type="submit" class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition">${editing ? 'Update Note' : 'Save Note'}</button>
+          </form>
+
+          <div class="lg:col-span-2 space-y-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <input id="note-search" type="text" value="${escapeHTML(uiState.noteSearch)}" placeholder="Search notes..." class="flex-1 min-w-[180px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
+              <select id="note-filter-tag" class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
+                <option value="all">All Tags</option>
+                ${['Personal', 'Work', 'Ideas', 'Health', 'Journal'].map(tg => `<option value="${tg}" ${uiState.noteFilterTag === tg ? 'selected' : ''}>${tg}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${filtered.map(n => `
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between gap-3 ${colorMap[n.color] || ''}">
+                  <div>
+                    <div class="flex items-start justify-between gap-2">
+                      <h4 class="font-bold text-base">${escapeHTML(n.title)}</h4>
+                      <div class="flex items-center gap-1 shrink-0">
+                        <button data-pin-note="${n.id}" class="p-1 rounded-lg ${n.pinned ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}" title="Pin note"><i data-lucide="pin" class="w-4 h-4"></i></button>
+                        <button data-edit-note="${n.id}" class="p-1 text-slate-400 hover:text-indigo-600 rounded-lg" title="Edit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button data-del-note="${n.id}" class="p-1 text-slate-400 hover:text-rose-600 rounded-lg" title="Delete"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                      </div>
+                    </div>
+                    <p class="text-sm text-slate-600 dark:text-slate-300 mt-2 whitespace-pre-line">${escapeHTML(n.content)}</p>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">${escapeHTML(n.tag)}</span>
+                    <span>${new Date(n.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              `).join('') || '<div class="col-span-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-slate-500">No notes found.</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      const cancelBtn = document.getElementById('cancel-edit-note');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+          uiState.editingNoteId = null;
+          renderActiveView();
+        });
+      }
+
+      document.getElementById('note-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = document.getElementById('note-title').value.trim();
+        const tag = document.getElementById('note-tag').value;
+        const color = document.getElementById('note-color').value;
+        const content = document.getElementById('note-content').value.trim();
+        if (!title || !content) return;
+        if (uiState.editingNoteId) {
+          const existing = state.notes.find(n => n.id === uiState.editingNoteId);
+          if (existing) {
+            existing.title = title;
+            existing.tag = tag;
+            existing.color = color;
+            existing.content = content;
+            existing.updatedAt = new Date().toISOString();
+          }
+          uiState.editingNoteId = null;
+          showToast('Note updated', 'success');
+        } else {
+          state.notes.unshift({ id: uid(), title, tag, color, pinned: false, content, updatedAt: new Date().toISOString() });
+          showToast('Note saved', 'success');
+        }
+        saveState();
+        renderActiveView();
+      });
+
+      document.getElementById('note-search').addEventListener('input', (e) => {
+        uiState.noteSearch = e.target.value;
+        renderActiveView();
+      });
+      document.getElementById('note-filter-tag').addEventListener('change', (e) => {
+        uiState.noteFilterTag = e.target.value;
+        renderActiveView();
+      });
+
+      container.querySelectorAll('[data-pin-note]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const n = state.notes.find(x => x.id === btn.getAttribute('data-pin-note'));
+          if (n) { n.pinned = !n.pinned; saveState(); renderActiveView(); }
+        });
+      });
+      container.querySelectorAll('[data-edit-note]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          uiState.editingNoteId = btn.getAttribute('data-edit-note');
+          renderActiveView();
+        });
+      });
+      container.querySelectorAll('[data-del-note]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-note');
+          state.notes = state.notes.filter(n => n.id !== id);
+          if (uiState.editingNoteId === id) uiState.editingNoteId = null;
+          saveState();
+          renderActiveView();
+        });
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. TIME TOOLS (TIMER, STOPWATCH, ALARM)
+    // -------------------------------------------------------------------------
+    function renderTimeTools(container) {
+      container.innerHTML = `
+        <div class="space-y-6">
+          <div class="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 w-fit shadow-sm">
+            ${[
+              { id: 'timer', label: 'Timer', icon: 'hourglass' },
+              { id: 'stopwatch', label: 'Stopwatch', icon: 'watch' },
+              { id: 'alarm', label: 'Alarm', icon: 'alarm-clock' }
+            ].map(tab => `
+              <button data-time-tab="${tab.id}" class="px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-2 transition ${
+                uiState.timeSubTab === tab.id ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }">
+                <i data-lucide="${tab.icon}" class="w-4 h-4"></i>
+                ${tab.label}
+              </button>
+            `).join('')}
+          </div>
+          <div id="time-subview"></div>
+        </div>
+      `;
+
+      container.querySelectorAll('[data-time-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          uiState.timeSubTab = btn.getAttribute('data-time-tab');
+          renderActiveView();
+        });
+      });
+
+      renderTimeToolsSection();
+    }
+
+    function renderTimeToolsSection() {
+      const sub = document.getElementById('time-subview');
+      if (!sub) return;
+
+      if (uiState.timeSubTab === 'timer') {
+        const circumference = 2 * Math.PI * 88;
+        const pct = runtime.timer.totalSeconds > 0 ? runtime.timer.remainingSeconds / runtime.timer.totalSeconds : 0;
+        sub.innerHTML = `
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm max-w-xl mx-auto text-center space-y-6">
+            <div class="relative w-52 h-52 mx-auto flex items-center justify-center">
+              <svg class="w-full h-full -rotate-90" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="88" fill="none" stroke="currentColor" stroke-width="10" class="text-slate-100 dark:text-slate-800" />
+                <circle id="timer-ring-progress" cx="100" cy="100" r="88" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"
+                  class="text-cyan-500 transition-all duration-300"
+                  style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${circumference * (1 - pct)};" />
+              </svg>
+              <div id="timer-readout" class="absolute text-4xl font-bold tabular-nums">${formatTimerSeconds(runtime.timer.remainingSeconds)}</div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              ${[1, 5, 15, 25, 45].map(m => `
+                <button data-preset-min="${m}" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-cyan-50 dark:hover:bg-cyan-950 hover:text-cyan-600 transition">${m}m</button>
+              `).join('')}
+            </div>
+
+            <div class="flex items-center justify-center gap-2">
+              <input id="custom-min" type="number" min="0" max="999" value="${Math.floor(runtime.timer.totalSeconds / 60)}" class="w-20 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-center" />
+              <span class="text-xs text-slate-500">min</span>
+              <input id="custom-sec" type="number" min="0" max="59" value="${runtime.timer.totalSeconds % 60}" class="w-20 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-center" />
+              <span class="text-xs text-slate-500">sec</span>
+              <button id="set-custom-timer" class="px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-700 text-white text-xs font-semibold">Set</button>
+            </div>
+
+            <div class="flex items-center justify-center gap-3">
+              <button id="timer-toggle-btn" class="px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-sm transition">${runtime.timer.running ? 'Pause' : 'Start'}</button>
+              <button id="timer-reset-btn" class="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold text-sm transition">Reset</button>
+            </div>
+          </div>
+        `;
+
+        sub.querySelectorAll('[data-preset-min]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const secs = Number(btn.getAttribute('data-preset-min')) * 60;
+            pauseTimer();
+            runtime.timer.totalSeconds = secs;
+            runtime.timer.remainingSeconds = secs;
+            renderTimeToolsSection();
+          });
+        });
+
+        document.getElementById('set-custom-timer').addEventListener('click', () => {
+          const m = Math.max(0, Number(document.getElementById('custom-min').value) || 0);
+          const s = Math.max(0, Math.min(59, Number(document.getElementById('custom-sec').value) || 0));
+          const total = m * 60 + s;
+          if (total > 0) {
+            pauseTimer();
+            runtime.timer.totalSeconds = total;
+            runtime.timer.remainingSeconds = total;
+            updateTimerDOM();
+          }
+        });
+
+        document.getElementById('timer-toggle-btn').addEventListener('click', () => {
+          if (runtime.timer.running) pauseTimer();
+          else startTimer();
+        });
+        document.getElementById('timer-reset-btn').addEventListener('click', resetTimer);
+      }
+
+      else if (uiState.timeSubTab === 'stopwatch') {
+        sub.innerHTML = `
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm max-w-xl mx-auto text-center space-y-6">
+            <div id="stopwatch-readout" class="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight py-4">${formatStopwatchMs(runtime.stopwatch.elapsedMs)}</div>
+            <div class="flex items-center justify-center gap-3">
+              <button id="sw-toggle-btn" class="px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-sm transition">${runtime.stopwatch.running ? 'Pause' : 'Start'}</button>
+              <button id="sw-lap-btn" class="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold text-sm transition">Lap</button>
+              <button id="sw-reset-btn" class="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold text-sm transition">Reset</button>
+            </div>
+            ${runtime.stopwatch.laps.length ? `
+              <div class="text-left border-t border-slate-100 dark:border-slate-800 pt-4 max-h-60 overflow-y-auto space-y-1.5">
+                ${runtime.stopwatch.laps.map((lap, idx) => `
+                  <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-sm tabular-nums">
+                    <span class="font-semibold text-slate-500">Lap ${runtime.stopwatch.laps.length - idx}</span>
+                    <span class="font-medium">+${formatStopwatchMs(lap.split)}</span>
+                    <span class="font-bold">${formatStopwatchMs(lap.total)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        document.getElementById('sw-toggle-btn').addEventListener('click', () => {
+          if (runtime.stopwatch.running) pauseStopwatch();
+          else startStopwatch();
+        });
+        document.getElementById('sw-lap-btn').addEventListener('click', () => {
+          if (runtime.stopwatch.elapsedMs <= 0) return;
+          const prevTotal = runtime.stopwatch.laps.length ? runtime.stopwatch.laps[0].total : 0;
+          runtime.stopwatch.laps.unshift({ total: runtime.stopwatch.elapsedMs, split: runtime.stopwatch.elapsedMs - prevTotal });
+          renderTimeToolsSection();
+        });
+        document.getElementById('sw-reset-btn').addEventListener('click', resetStopwatch);
+      }
+
+      else if (uiState.timeSubTab === 'alarm') {
+        const nowStr = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        sub.innerHTML = `
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <div class="text-center py-3 rounded-xl bg-slate-50 dark:bg-slate-800/70">
+                <div class="text-xs uppercase font-semibold text-slate-500">Current Time</div>
+                <div id="alarm-big-clock" class="text-3xl font-bold tabular-nums mt-1">${nowStr}</div>
+              </div>
+              <form id="alarm-form" class="space-y-3">
+                <h3 class="font-bold text-base">Set New Alarm</h3>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Time</label>
+                  <input id="alarm-time" type="time" required value="08:00" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Label</label>
+                  <input id="alarm-label" type="text" placeholder="e.g., Take Vitamins" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">Frequency</label>
+                  <select id="alarm-repeat" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    <option value="Daily">Daily</option>
+                    <option value="Once">Once</option>
+                  </select>
+                </div>
+                <button type="submit" class="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-sm transition">Add Alarm</button>
+              </form>
+              <button id="test-alarm-sound" class="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition">Test Alarm Sound</button>
+            </div>
+
+            <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+              <h3 class="font-bold text-base mb-4">Your Alarms</h3>
+              <div class="space-y-2.5">
+                ${state.alarms.map(a => `
+                  <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                    <div>
+                      <div class="text-2xl font-bold tabular-nums ${a.enabled ? '' : 'text-slate-400'}">${a.time}</div>
+                      <div class="text-xs text-slate-500">${escapeHTML(a.label || 'Alarm')} • ${a.repeat}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" data-toggle-alarm="${a.id}" ${a.enabled ? 'checked' : ''} class="sr-only peer" />
+                        <div class="w-11 h-6 bg-slate-300 dark:bg-slate-700 peer-checked:bg-cyan-600 rounded-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                      </label>
+                      <button data-edit-alarm="${a.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit alarm"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                      <button data-del-alarm="${a.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete alarm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                  </div>
+                `).join('') || '<p class="text-sm text-slate-500 text-center py-6">No alarms set.</p>'}
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('alarm-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          getAudioCtx();
+          const time = document.getElementById('alarm-time').value;
+          const label = document.getElementById('alarm-label').value.trim() || 'Alarm';
+          const repeat = document.getElementById('alarm-repeat').value;
+          if (!time) return;
+          state.alarms.push({ id: uid(), time, label, repeat, enabled: true });
+          saveState();
+          renderTimeToolsSection();
+          showToast(`Alarm set for ${time}`, 'success');
+        });
+
+        document.getElementById('test-alarm-sound').addEventListener('click', () => {
+          playChimePattern();
+          showToast('Playing test chime', 'info');
+        });
+
+        sub.querySelectorAll('[data-toggle-alarm]').forEach(cb => {
+          cb.addEventListener('change', () => {
+            getAudioCtx();
+            const a = state.alarms.find(x => x.id === cb.getAttribute('data-toggle-alarm'));
+            if (a) { a.enabled = cb.checked; saveState(); renderTimeToolsSection(); }
+          });
+        });
+
+        sub.querySelectorAll('[data-edit-alarm]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const alarm = state.alarms.find(item => item.id === btn.getAttribute('data-edit-alarm'));
+            if (!alarm) return;
+            openRecordEditor('Edit Alarm', [
+              { name: 'time', label: 'Time', type: 'time', value: alarm.time, required: true },
+              { name: 'label', label: 'Label', value: alarm.label || '', required: true },
+              { name: 'repeat', label: 'Frequency', type: 'select', value: alarm.repeat, options: ['Daily', 'Once'].map(value => ({ value, label: value })) },
+              { name: 'enabled', label: 'Enabled', type: 'checkbox', value: alarm.enabled, checkboxLabel: 'Alarm is enabled', wide: true }
+            ], values => {
+              alarm.time = values.time;
+              alarm.label = values.label.trim() || 'Alarm';
+              alarm.repeat = values.repeat;
+              alarm.enabled = values.enabled === 'on';
+              saveState();
+              renderTimeToolsSection();
+              showToast('Alarm updated', 'success');
+            });
+          });
+        });
+
+        sub.querySelectorAll('[data-del-alarm]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-del-alarm');
+            state.alarms = state.alarms.filter(a => a.id !== id);
+            saveState();
+            renderTimeToolsSection();
+          });
+        });
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. SYNC & BACKUP (MULTI-DEVICE TRANSFER)
+    // -------------------------------------------------------------------------
+    function encodeSyncCode(obj) {
+      const json = JSON.stringify(obj);
+      const bytes = new TextEncoder().encode(json);
+      let bin = '';
+      bytes.forEach(b => { bin += String.fromCharCode(b); });
+      return 'LF1:' + btoa(bin);
+    }
+
+    function decodeSyncCode(str) {
+      const trimmed = str.trim();
+      if (trimmed.startsWith('{')) {
+        return JSON.parse(trimmed);
+      }
+      const b64 = trimmed.startsWith('LF1:') ? trimmed.slice(4) : trimmed;
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const json = new TextDecoder().decode(bytes);
+      return JSON.parse(json);
+    }
+
+    function applyImportedState(parsed) {
+      if (!parsed || typeof parsed !== 'object' || !parsed.budget || !parsed.todos || !parsed.notes) {
+        throw new Error('Invalid LifeFlow backup format.');
+      }
+      state = { ...getDefaultState(), ...parsed };
+      saveState();
+      applyTheme();
+      renderNav();
+      renderActiveView();
+    }
+
+    function copyTextFallback(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).catch(() => {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        });
+      }
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      return Promise.resolve();
+    }
+
+    function renderSync(container) {
+      const syncCode = encodeSyncCode(state);
+      container.innerHTML = `
+        <div class="space-y-6 max-w-4xl">
+          <div class="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 flex items-start gap-3">
+            <div class="p-2 rounded-xl bg-indigo-600 text-white shrink-0"><i data-lucide="smartphone" class="w-5 h-5"></i></div>
+            <div>
+              <h3 class="font-bold text-sm text-indigo-950 dark:text-indigo-200">Use Across Mobile, Tablet & Laptop</h3>
+              <p class="text-xs text-indigo-800 dark:text-indigo-300 mt-1 leading-relaxed">
+                This app runs privately in your browser without a remote server, so your data stays on each device. To move your data between your phone, tablet, and laptop, export a backup file or copy your Sync Code below and import it on your other device. You can also save this HTML file to your cloud drive (Google Drive / iCloud) and open it on any device, or add it to your mobile home screen.
+              </p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Export -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 class="font-bold text-base flex items-center gap-2">
+                <i data-lucide="upload-cloud" class="w-4 h-4 text-emerald-500"></i>
+                Export from This Device
+              </h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                Includes ${state.budget.transactions.length} transactions, ${state.period.logs.length} period logs, ${state.activity.logs.length} activities, ${state.progress.goals.length} goals, ${state.todos.length} tasks, ${state.notes.length} notes, and ${state.alarms.length} alarms.
+              </p>
+              <button id="download-json-btn" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center justify-center gap-2">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Download Backup (.json)
+              </button>
+              <div class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <label class="block text-xs font-semibold text-slate-500">Or Copy Sync Code</label>
+                <textarea id="export-sync-code" readonly rows="3" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono select-all">${escapeHTML(syncCode)}</textarea>
+                <button id="copy-sync-code-btn" class="w-full py-2 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                  Copy Sync Code
+                </button>
+              </div>
+            </div>
+
+            <!-- Import -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 class="font-bold text-base flex items-center gap-2">
+                <i data-lucide="download-cloud" class="w-4 h-4 text-indigo-500"></i>
+                Import to This Device
+              </h3>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Upload Backup (.json)</label>
+                <input id="import-json-file" type="file" accept=".json,application/json" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-950 dark:file:text-indigo-300 hover:file:bg-indigo-100" />
+              </div>
+              <div class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <label class="block text-xs font-semibold text-slate-500">Or Paste Sync Code / JSON</label>
+                <textarea id="import-sync-code" rows="4" placeholder="Paste LF1:... sync code or JSON here..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono"></textarea>
+                <button id="apply-sync-code-btn" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition">Restore Data</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('download-json-btn').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `lifeflow-backup-${todayISO()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Backup file downloaded', 'success');
+      });
+
+      document.getElementById('copy-sync-code-btn').addEventListener('click', () => {
+        const code = document.getElementById('export-sync-code').value;
+        copyTextFallback(code).then(() => showToast('Sync code copied to clipboard', 'success'));
+      });
+
+      document.getElementById('import-json-file').addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result));
+            applyImportedState(parsed);
+            showToast('Backup restored successfully!', 'success');
+          } catch (err) {
+            showToast('Could not read backup file', 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      document.getElementById('apply-sync-code-btn').addEventListener('click', () => {
+        const raw = document.getElementById('import-sync-code').value;
+        if (!raw.trim()) {
+          showToast('Paste a sync code or JSON first', 'warning');
+          return;
+        }
+        try {
+          const parsed = decodeSyncCode(raw);
+          applyImportedState(parsed);
+          showToast('Data synced to this device!', 'success');
+        } catch (err) {
+          showToast('Invalid sync code or JSON', 'error');
+        }
+      });
+    }
+
+    // =========================================================================
+    // BOOTSTRAP
+    // =========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      applyTheme();
+      renderNav();
+      renderActiveView();
+
+      document.getElementById('mobile-menu-btn').addEventListener('click', openMobileSidebar);
+      document.getElementById('close-sidebar-btn').addEventListener('click', closeMobileSidebar);
+      document.getElementById('sidebar-backdrop').addEventListener('click', closeMobileSidebar);
+      document.getElementById('desktop-theme-btn').addEventListener('click', toggleTheme);
+      document.getElementById('mobile-theme-btn').addEventListener('click', toggleTheme);
+      document.getElementById('record-editor-close').addEventListener('click', closeRecordEditor);
+      document.getElementById('record-editor-cancel').addEventListener('click', closeRecordEditor);
+      document.getElementById('record-editor-modal').addEventListener('click', (event) => {
+        if (event.target.id === 'record-editor-modal') closeRecordEditor();
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeRecordEditor();
+      });
+
+      const jumpToTime = () => {
+        state.activeTab = 'time';
+        saveState();
+        renderNav();
+        renderActiveView();
+      };
+      document.getElementById('desktop-time-pill').addEventListener('click', jumpToTime);
+      document.getElementById('mobile-time-pill').addEventListener('click', jumpToTime);
+
+      document.getElementById('reset-demo-btn').addEventListener('click', () => {
+        openModal({
+          title: 'Clear All Data?',
+          body: 'This permanently removes all saved transactions, logs, goals, tasks, notes, and alarms from this device. Export a backup first if you may want this data later.',
+          icon: 'rotate-ccw',
+          actions: [
+            { label: 'Cancel', className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition' },
+            {
+              label: 'Clear Data',
+              className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition',
+              onClick: () => {
+                pauseTimer();
+                pauseStopwatch();
+                state = getDefaultState();
+                saveState();
+                applyTheme();
+                renderNav();
+                renderActiveView();
+                showToast('All data cleared from this device', 'info');
+              }
+            }
+          ]
+        });
+      });
+
+      updateLiveClockAndAlarms();
+      runtime.alarmCheckIntervalId = setInterval(updateLiveClockAndAlarms, 1000);
+    });
+  </script>
+</body>
+</html>
