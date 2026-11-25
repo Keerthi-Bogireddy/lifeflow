@@ -1,6 +1,6 @@
 # LifeFlow Personal Hub
 
-LifeFlow is a mobile-friendly personal management app for budgets, period and activity tracking, goals, habits, tasks, notes, timers, and alarms.
+LifeFlow is a mobile-friendly personal management app for budgets, period and activity tracking, entertainment lists, goals, habits, tasks, notes, timers, and alarms.
 
 The Period Tracker records flow, symptoms, and notes separately for each day in a period, and existing period logs can be edited with daily details.
 
@@ -30,6 +30,8 @@ LifeFlow stores data locally in the browser or installed app on each device. It 
 Use **Manage Categories** in the navigation menu to add custom budget, payment, period flow and symptom, activity, goal, task, and note options. Remove custom options there when no longer needed; this affects future entries only, and built-in options cannot be removed. Period flow levels and symptoms are available in each day's period details. Custom options are saved with app data and included in manual backups.
 
 The Budget Tracker includes separate financial profiles, transfers between profiles, a transaction calendar, and monthly, yearly, or custom-date reports. Currency selection changes the displayed symbol only; it does not convert transaction amounts. Profiles, transactions, and transfers are included in local backups.
+
+The Entertainment section tracks movies, anime, manhwa, and comics by title, type, and status. Its list is stored locally and included in manual backups.
 
 Bundled front-end libraries:
 

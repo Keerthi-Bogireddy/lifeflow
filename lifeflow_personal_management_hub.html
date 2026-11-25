@@ -361,6 +361,9 @@
       { symbol: 'R', label: 'South African Rand' }
     ];
 
+    const ENTERTAINMENT_TYPES = ['Movie', 'Anime', 'Manhwa', 'Comic'];
+    const ENTERTAINMENT_STATUSES = ['Want to watch/read', 'In progress', 'Completed', 'Paused'];
+
     function getDefaultState() {
       return {
         theme: 'light',
@@ -388,6 +391,7 @@
           goals: [],
           habits: []
         },
+        entertainment: [],
         todos: [],
         notes: [],
         alarms: []
@@ -402,12 +406,31 @@
       const parsedBudget = parsed.budget && typeof parsed.budget === 'object' && !Array.isArray(parsed.budget)
         ? parsed.budget
         : {};
+      const rawEntertainment = parsed.entertainment === undefined ? defaults.entertainment : parsed.entertainment;
+      if (!Array.isArray(rawEntertainment)) throw new Error('Entertainment items must be a list.');
       if (strict && (!parsed.budget || !Array.isArray(parsed.budget.transactions) ||
           !Array.isArray(parsed.todos) || !Array.isArray(parsed.notes) ||
           !Array.isArray(parsed.period?.logs) || !Array.isArray(parsed.activity?.logs) ||
           !Array.isArray(parsed.progress?.goals) || !Array.isArray(parsed.progress?.habits) ||
           !Array.isArray(parsed.alarms))) {
         throw new Error('Backup is missing required LifeFlow data lists.');
+      }
+      const entertainment = rawEntertainment
+        .filter(item => item && typeof item === 'object' && !Array.isArray(item) &&
+          typeof item.id === 'string' && item.id.trim() &&
+          typeof item.title === 'string' && item.title.trim() && item.title.trim().length <= 120 &&
+          ENTERTAINMENT_TYPES.includes(item.type) && ENTERTAINMENT_STATUSES.includes(item.status))
+        .map(item => ({
+          id: item.id.trim(),
+          title: item.title.trim(),
+          type: item.type,
+          status: item.status
+        }));
+      if (strict && entertainment.length !== rawEntertainment.length) {
+        throw new Error('Backup contains an invalid entertainment item.');
+      }
+      if (strict && new Set(entertainment.map(item => item.id)).size !== entertainment.length) {
+        throw new Error('Entertainment item IDs must be unique.');
       }
 
       const rawProfiles = parsedBudget.profiles === undefined
@@ -494,7 +517,8 @@
         },
         period: { ...defaults.period, ...(parsed.period || {}) },
         activity: { ...defaults.activity, ...(parsed.activity || {}) },
-        progress: { ...defaults.progress, ...(parsed.progress || {}) }
+        progress: { ...defaults.progress, ...(parsed.progress || {}) },
+        entertainment
       };
     }
 
@@ -589,6 +613,10 @@
       noteSearch: '',
       noteFilterTag: 'all',
       editingNoteId: null,
+      entertainmentSearch: '',
+      entertainmentFilterType: 'all',
+      entertainmentFilterStatus: 'all',
+      editingEntertainmentId: null,
       editingPeriodId: null,
       timeSubTab: 'timer'
     };
@@ -792,6 +820,7 @@
       { id: 'budget', label: 'Budget Tracker', icon: 'wallet', color: 'text-emerald-500' },
       { id: 'period', label: 'Period Tracker', icon: 'calendar-heart', color: 'text-rose-500' },
       { id: 'activity', label: 'Activity Tracker', icon: 'activity', color: 'text-orange-500' },
+      { id: 'entertainment', label: 'Entertainment', icon: 'film', color: 'text-fuchsia-500' },
       { id: 'progress', label: 'Progress Trackers', icon: 'target', color: 'text-violet-500' },
       { id: 'todos', label: 'To-Do List', icon: 'check-square', color: 'text-sky-500' },
       { id: 'notes', label: 'Notes', icon: 'sticky-note', color: 'text-amber-500' },
@@ -1204,6 +1233,7 @@
         case 'budget': renderBudget(main); break;
         case 'period': renderPeriod(main); break;
         case 'activity': renderActivity(main); break;
+        case 'entertainment': renderEntertainment(main); break;
         case 'progress': renderProgress(main); break;
         case 'todos': renderTodos(main); break;
         case 'notes': renderNotes(main); break;
@@ -2778,6 +2808,170 @@
           }
         });
       }
+    }
+
+    function renderEntertainment(container) {
+      const editing = uiState.editingEntertainmentId
+        ? state.entertainment.find(item => item.id === uiState.editingEntertainmentId)
+        : null;
+      const filtered = [...state.entertainment]
+        .filter(item => uiState.entertainmentFilterType === 'all' || item.type === uiState.entertainmentFilterType)
+        .filter(item => uiState.entertainmentFilterStatus === 'all' || item.status === uiState.entertainmentFilterStatus)
+        .filter(item => !uiState.entertainmentSearch || item.title.toLowerCase().includes(uiState.entertainmentSearch.toLowerCase()));
+      const statusClasses = {
+        'Want to watch/read': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+        'In progress': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300',
+        'Completed': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+        'Paused': 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+      };
+
+      container.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+            <h3 class="font-bold">Your watch and reading list</h3>
+            <p class="text-sm text-slate-500 mt-1">Keep movies, anime, manhwa, and comics together. Your list is saved on this device and included in backups.</p>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <form id="entertainment-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 h-fit">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-bold">${editing ? 'Edit title' : 'Add a title'}</h3>
+                ${editing ? '<button type="button" id="cancel-entertainment-edit" class="text-xs font-semibold text-slate-500 hover:underline">Cancel</button>' : ''}
+              </div>
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Name</span>
+                <input id="entertainment-title" type="text" maxlength="120" required value="${editing ? escapeHTML(editing.title) : ''}" placeholder="Enter movie, anime, manhwa, or comic name" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-normal" />
+              </label>
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Type</span>
+                <select id="entertainment-type" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-normal">
+                  ${ENTERTAINMENT_TYPES.map(type => `<option value="${type}" ${editing && editing.type === type ? 'selected' : ''}>${type}</option>`).join('')}
+                </select>
+              </label>
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Status</span>
+                <select id="entertainment-status" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-normal">
+                  ${ENTERTAINMENT_STATUSES.map(status => `<option value="${escapeHTML(status)}" ${editing && editing.status === status ? 'selected' : ''}>${escapeHTML(status)}</option>`).join('')}
+                </select>
+              </label>
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-semibold text-sm transition">${editing ? 'Save changes' : 'Add to list'}</button>
+            </form>
+
+            <section class="lg:col-span-2 space-y-4">
+              <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                <h3 class="font-bold mb-3">My list <span class="text-sm font-normal text-slate-500">(${filtered.length})</span></h3>
+                <form id="entertainment-search-form" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <input id="entertainment-search" type="search" value="${escapeHTML(uiState.entertainmentSearch)}" placeholder="Search titles" aria-label="Search entertainment titles" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  <select id="entertainment-filter-type" aria-label="Filter by type" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    <option value="all">All types</option>
+                    ${ENTERTAINMENT_TYPES.map(type => `<option value="${type}" ${uiState.entertainmentFilterType === type ? 'selected' : ''}>${type}</option>`).join('')}
+                  </select>
+                  <select id="entertainment-filter-status" aria-label="Filter by status" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                    <option value="all">All statuses</option>
+                    ${ENTERTAINMENT_STATUSES.map(status => `<option value="${escapeHTML(status)}" ${uiState.entertainmentFilterStatus === status ? 'selected' : ''}>${escapeHTML(status)}</option>`).join('')}
+                  </select>
+                  <button type="submit" class="sm:col-span-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700">Search</button>
+                </form>
+              </div>
+              <div class="space-y-3">
+                ${filtered.map(item => `
+                  <article class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <h4 class="font-bold text-base break-words">${escapeHTML(item.title)}</h4>
+                        <div class="flex flex-wrap items-center gap-2 mt-2">
+                          <span class="text-xs font-medium text-slate-500">${escapeHTML(item.type)}</span>
+                          <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${statusClasses[item.status]}">${escapeHTML(item.status)}</span>
+                        </div>
+                      </div>
+                      <div class="flex shrink-0 gap-1">
+                        <button type="button" data-edit-entertainment="${escapeHTML(item.id)}" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950">Edit</button>
+                        <button type="button" data-delete-entertainment="${escapeHTML(item.id)}" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950">Delete</button>
+                      </div>
+                    </div>
+                  </article>
+                `).join('') || `
+                  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-slate-500">
+                    ${state.entertainment.length ? 'No titles match these filters.' : 'Your list is empty. Add a title to get started.'}
+                  </div>
+                `}
+              </div>
+            </section>
+          </div>
+        </div>
+      `;
+
+      const cancelButton = document.getElementById('cancel-entertainment-edit');
+      if (cancelButton) {
+        cancelButton.addEventListener('click', () => {
+          uiState.editingEntertainmentId = null;
+          renderActiveView();
+        });
+      }
+
+      document.getElementById('entertainment-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const title = document.getElementById('entertainment-title').value.trim();
+        const type = document.getElementById('entertainment-type').value;
+        const status = document.getElementById('entertainment-status').value;
+        if (!title || title.length > 120 || !ENTERTAINMENT_TYPES.includes(type) || !ENTERTAINMENT_STATUSES.includes(status)) {
+          showToast('Enter a title and choose a valid type and status', 'warning');
+          return;
+        }
+
+        if (editing) {
+          editing.title = title;
+          editing.type = type;
+          editing.status = status;
+          uiState.editingEntertainmentId = null;
+          showToast('Title updated', 'success');
+        } else {
+          state.entertainment.unshift({ id: uid(), title, type, status });
+          showToast('Added to your entertainment list', 'success');
+        }
+        saveState();
+        renderActiveView();
+      });
+
+      document.getElementById('entertainment-search-form').addEventListener('submit', event => {
+        event.preventDefault();
+        uiState.entertainmentSearch = document.getElementById('entertainment-search').value.trim();
+        uiState.entertainmentFilterType = document.getElementById('entertainment-filter-type').value;
+        uiState.entertainmentFilterStatus = document.getElementById('entertainment-filter-status').value;
+        renderActiveView();
+      });
+
+      container.querySelectorAll('[data-edit-entertainment]').forEach(button => {
+        button.addEventListener('click', () => {
+          uiState.editingEntertainmentId = button.getAttribute('data-edit-entertainment');
+          renderActiveView();
+        });
+      });
+
+      container.querySelectorAll('[data-delete-entertainment]').forEach(button => {
+        button.addEventListener('click', () => {
+          const item = state.entertainment.find(entry => entry.id === button.getAttribute('data-delete-entertainment'));
+          if (!item) return;
+          openModal({
+            title: 'Delete this title?',
+            body: `Remove "${item.title}" from your entertainment list?`,
+            icon: 'trash-2',
+            actions: [
+              { label: 'Cancel', className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800' },
+              {
+                label: 'Delete',
+                className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition',
+                onClick: () => {
+                  state.entertainment = state.entertainment.filter(entry => entry.id !== item.id);
+                  if (uiState.editingEntertainmentId === item.id) uiState.editingEntertainmentId = null;
+                  saveState();
+                  renderActiveView();
+                  showToast('Title deleted', 'success');
+                }
+              }
+            ]
+          });
+        });
+      });
     }
 
     // -------------------------------------------------------------------------
