@@ -7,24 +7,21 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#4f46e5" />
   <title>LifeFlow — Personal Management Hub</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="./vendor/tailwindcss.browser.js" integrity="sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            sans: ['system-ui', '-apple-system', 'sans-serif'],
           },
         },
       },
     };
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="./vendor/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4"></script>
+  <script src="./vendor/lucide.min.js" integrity="sha384-ieG+IKD0d/ZPXyCBTMVAbqsQdns8QGJR/e26WMw7M4fkaI/rHcS/YIoi+ah9WGge"></script>
   <style>
     :root {
       color-scheme: light;
@@ -32,7 +29,7 @@
     }
     html.dark { color-scheme: dark; }
     body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: system-ui, -apple-system, sans-serif;
       background-image: radial-gradient(ellipse at top left, rgba(99, 102, 241, 0.06), transparent 34rem);
     }
     button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
@@ -305,11 +302,39 @@
       return Math.round((b - a) / 86400000);
     }
 
+    const CATEGORY_GROUPS = {
+      budgetCategories: {
+        label: 'Budget categories',
+        defaults: ['Food', 'Housing', 'Transport', 'Utilities', 'Health', 'Entertainment', 'Shopping', 'Salary', 'Freelance', 'Other']
+      },
+      paymentMethods: {
+        label: 'Payment methods',
+        defaults: ['Cash', 'UPI', 'Debit card', 'Credit card', 'Net banking', 'Other']
+      },
+      activityTypes: {
+        label: 'Activity types',
+        defaults: ['Walking', 'Running', 'Cycling', 'Yoga', 'Gym', 'Swimming', 'Meditation', 'Other']
+      },
+      goalCategories: {
+        label: 'Goal categories',
+        defaults: ['Personal', 'Finance', 'Fitness', 'Learning', 'Career']
+      },
+      taskCategories: {
+        label: 'Task categories',
+        defaults: ['Work', 'Personal', 'Finance', 'Health', 'Learning', 'Other']
+      },
+      noteTags: {
+        label: 'Note tags',
+        defaults: ['Personal', 'Work', 'Ideas', 'Health', 'Journal']
+      }
+    };
+
     function getDefaultState() {
       return {
         theme: 'light',
         activeTab: 'dashboard',
         currency: '₹',
+        customOptions: {},
         budget: {
           monthlyLimit: 45000,
           transactions: []
@@ -332,6 +357,41 @@
         notes: [],
         alarms: []
       };
+    }
+
+    function getCategoryOptions(key) {
+      const group = CATEGORY_GROUPS[key];
+      if (!group) return [];
+      const custom = state.customOptions && Array.isArray(state.customOptions[key])
+        ? state.customOptions[key]
+        : [];
+      const validCustom = custom
+        .filter(value => typeof value === 'string')
+        .map(value => value.trim())
+        .filter(value => value && value.length <= 40);
+      return [...new Set([...group.defaults, ...validCustom])];
+    }
+
+    function addCategoryOption(key, rawValue) {
+      const group = CATEGORY_GROUPS[key];
+      const value = String(rawValue ?? '').trim();
+      if (!group || !value || value.length > 40) {
+        showToast('Enter a category name up to 40 characters', 'warning');
+        return false;
+      }
+      if (getCategoryOptions(key).some(option => option.toLowerCase() === value.toLowerCase())) {
+        showToast('That option already exists', 'warning');
+        return false;
+      }
+      if (!state.customOptions || typeof state.customOptions !== 'object' || Array.isArray(state.customOptions)) {
+        state.customOptions = {};
+      }
+      const custom = Array.isArray(state.customOptions[key]) ? state.customOptions[key] : [];
+      state.customOptions[key] = [...custom, value];
+      saveState();
+      showToast(`Option added to ${group.label.toLowerCase()}`, 'success');
+      renderActiveView();
+      return true;
     }
 
     function loadState() {
@@ -563,7 +623,6 @@
     // =========================================================================
     // NAVIGATION & THEME
     // =========================================================================
-    const PAYMENT_METHODS = ['Cash', 'UPI', 'Debit card', 'Credit card', 'Net banking', 'Other'];
     const NAV_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', color: 'text-indigo-500' },
       { id: 'budget', label: 'Budget Tracker', icon: 'wallet', color: 'text-emerald-500' },
@@ -573,6 +632,7 @@
       { id: 'todos', label: 'To-Do List', icon: 'check-square', color: 'text-sky-500' },
       { id: 'notes', label: 'Notes', icon: 'sticky-note', color: 'text-amber-500' },
       { id: 'time', label: 'Timer, Stopwatch & Alarm', icon: 'timer', color: 'text-cyan-500' },
+      { id: 'categories', label: 'Manage Categories', icon: 'tags', color: 'text-indigo-500' },
       { id: 'sync', label: 'Sync & Backup', icon: 'refresh-cw', color: 'text-indigo-500' }
     ];
 
@@ -595,7 +655,7 @@
       navList.innerHTML = NAV_ITEMS.map(item => {
         const active = state.activeTab === item.id;
         return `
-          <button data-nav-id="${item.id}" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+          <button data-nav-id="${escapeHTML(item.id)}" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
             active
               ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-semibold'
               : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
@@ -615,7 +675,7 @@
       const isMoreActive = !quickItems.some(item => item.id === state.activeTab);
       mobileNav.innerHTML = [
         ...quickItems.map(item => `
-          <button type="button" data-mobile-nav="${item.id}" class="${state.activeTab === item.id ? 'is-active' : ''}" ${state.activeTab === item.id ? 'aria-current="page"' : ''}>
+          <button type="button" data-mobile-nav="${escapeHTML(item.id)}" class="${state.activeTab === item.id ? 'is-active' : ''}" ${state.activeTab === item.id ? 'aria-current="page"' : ''}>
             <i data-lucide="${item.icon}" class="w-5 h-5"></i>
             <span>${item.label}</span>
           </button>
@@ -946,6 +1006,7 @@
         case 'todos': renderTodos(main); break;
         case 'notes': renderNotes(main); break;
         case 'time': renderTimeTools(main); break;
+        case 'categories': renderCategories(main); break;
         case 'sync': renderSync(main); break;
         default: renderDashboard(main);
       }
@@ -1035,7 +1096,7 @@
                 ${pendingTodos.slice(0, 4).map(t => `
                   <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
                     <div class="flex items-center gap-3 min-w-0">
-                      <input type="checkbox" data-dash-todo="${t.id}" class="w-4 h-4 rounded text-indigo-600" />
+                      <input type="checkbox" data-dash-todo="${escapeHTML(t.id)}" class="w-4 h-4 rounded text-indigo-600" />
                       <span class="text-sm font-medium truncate">${escapeHTML(t.title)}</span>
                     </div>
                     <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
@@ -1063,7 +1124,7 @@
                     const doneToday = (h.history || []).includes(todayISO());
                     const streak = getHabitStreak(h);
                     return `
-                      <button data-dash-habit="${h.id}" class="w-full flex items-center justify-between p-3 rounded-xl border transition ${
+                      <button data-dash-habit="${escapeHTML(h.id)}" class="w-full flex items-center justify-between p-3 rounded-xl border transition ${
                         doneToday
                           ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800'
                           : 'bg-slate-50 border-slate-200 dark:bg-slate-800/60 dark:border-slate-700 hover:border-indigo-400'
@@ -1144,7 +1205,11 @@
         .filter(t => !uiState.budgetSearch || t.desc.toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || t.category.toLowerCase().includes(uiState.budgetSearch.toLowerCase()) || (t.paymentMethod || '').toLowerCase().includes(uiState.budgetSearch.toLowerCase()))
         .sort((a, b) => b.date.localeCompare(a.date));
 
-      const categories = ['Food', 'Housing', 'Transport', 'Utilities', 'Health', 'Entertainment', 'Shopping', 'Salary', 'Freelance', 'Other'];
+      const categories = getCategoryOptions('budgetCategories');
+      state.budget.transactions.forEach(transaction => {
+        if (transaction.category && !categories.includes(transaction.category)) categories.push(transaction.category);
+      });
+      const paymentMethods = getCategoryOptions('paymentMethods');
 
       container.innerHTML = `
         <div class="space-y-6">
@@ -1201,7 +1266,7 @@
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Category</label>
                   <select id="tx-category" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                    ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+                    ${categories.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('')}
                   </select>
                 </div>
                 <div>
@@ -1212,7 +1277,7 @@
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Payment Method</label>
                 <select id="tx-payment-method" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                  ${PAYMENT_METHODS.map(method => `<option value="${method}" ${method === 'UPI' ? 'selected' : ''}>${method}</option>`).join('')}
+                  ${paymentMethods.map(method => `<option value="${escapeHTML(method)}" ${method === 'UPI' ? 'selected' : ''}>${escapeHTML(method)}</option>`).join('')}
                 </select>
               </div>
               <div>
@@ -1244,7 +1309,7 @@
                 </select>
                 <select id="budget-filter-cat" class="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
                   <option value="all">All Categories</option>
-                  ${categories.map(c => `<option value="${c}" ${uiState.budgetFilterCategory === c ? 'selected' : ''}>${c}</option>`).join('')}
+                  ${categories.map(c => `<option value="${escapeHTML(c)}" ${uiState.budgetFilterCategory === c ? 'selected' : ''}>${escapeHTML(c)}</option>`).join('')}
                 </select>
               </div>
             </div>
@@ -1272,10 +1337,10 @@
                       </td>
                       <td class="py-3 text-right">
                         <div class="flex justify-end gap-1">
-                          <button data-edit-tx="${t.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition" aria-label="Edit transaction">
+                          <button data-edit-tx="${escapeHTML(t.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition" aria-label="Edit transaction">
                             <i data-lucide="pencil" class="w-4 h-4"></i>
                           </button>
-                          <button data-del-tx="${t.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition" aria-label="Delete transaction">
+                          <button data-del-tx="${escapeHTML(t.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition" aria-label="Delete transaction">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                           </button>
                         </div>
@@ -1338,12 +1403,13 @@
         btn.addEventListener('click', () => {
           const transaction = state.budget.transactions.find(t => t.id === btn.getAttribute('data-edit-tx'));
           if (!transaction) return;
-          const transactionCategories = [...categories];
+          const transactionCategories = [...getCategoryOptions('budgetCategories')];
           if (transaction.category && !transactionCategories.includes(transaction.category)) {
             transactionCategories.push(transaction.category);
           }
-          const methodOptions = [{ value: '', label: 'Not specified' }, ...PAYMENT_METHODS.map(method => ({ value: method, label: method }))];
-          if (transaction.paymentMethod && !PAYMENT_METHODS.includes(transaction.paymentMethod)) {
+          const currentPaymentMethods = getCategoryOptions('paymentMethods');
+          const methodOptions = [{ value: '', label: 'Not specified' }, ...currentPaymentMethods.map(method => ({ value: method, label: method }))];
+          if (transaction.paymentMethod && !currentPaymentMethods.includes(transaction.paymentMethod)) {
             methodOptions.push({ value: transaction.paymentMethod, label: transaction.paymentMethod });
           }
           openRecordEditor('Edit Transaction', [
@@ -1587,8 +1653,8 @@
                     <div class="text-xs text-slate-500 mt-1">${(l.symptoms || []).join(', ') || 'No symptoms'}${l.notes ? ` • ${escapeHTML(l.notes)}` : ''}</div>
                   </div>
                   <div class="self-start sm:self-center flex gap-1">
-                    <button data-edit-period="${l.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit period log"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                    <button data-del-period="${l.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete period log"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <button data-edit-period="${escapeHTML(l.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit period log"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <button data-del-period="${escapeHTML(l.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete period log"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                   </div>
                 </div>
               `).join('') || '<p class="text-sm text-slate-500">No period logs yet.</p>'}
@@ -1703,7 +1769,7 @@
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Activity</label>
                   <select id="act-type" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                    <option>Walking</option><option>Running</option><option>Cycling</option><option>Yoga</option><option>Gym</option><option>Swimming</option><option>Meditation</option><option>Other</option>
+                    ${getCategoryOptions('activityTypes').map(type => `<option value="${escapeHTML(type)}" ${type === 'Walking' ? 'selected' : ''}>${escapeHTML(type)}</option>`).join('')}
                   </select>
                 </div>
                 <div>
@@ -1752,8 +1818,8 @@
                     <div class="text-xs text-slate-500 mt-0.5 tabular-nums">${l.date}${l.notes ? ` • ${escapeHTML(l.notes)}` : ''}</div>
                   </div>
                   <div class="flex gap-1">
-                    <button data-edit-act="${l.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit activity"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                    <button data-del-act="${l.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete activity"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <button data-edit-act="${escapeHTML(l.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit activity"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <button data-del-act="${escapeHTML(l.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete activity"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                   </div>
                 </div>
               `).join('') || '<p class="text-sm text-slate-500">No activities logged yet.</p>'}
@@ -1791,7 +1857,7 @@
         btn.addEventListener('click', () => {
           const activity = state.activity.logs.find(item => item.id === btn.getAttribute('data-edit-act'));
           if (!activity) return;
-          const activityTypes = ['Walking', 'Running', 'Cycling', 'Yoga', 'Gym', 'Swimming', 'Meditation', 'Other'];
+          const activityTypes = getCategoryOptions('activityTypes');
           if (!activityTypes.includes(activity.type)) activityTypes.push(activity.type);
           const intensityOptions = ['Low', 'Moderate', 'High'];
           if (!intensityOptions.includes(activity.intensity)) intensityOptions.push(activity.intensity);
@@ -1886,7 +1952,7 @@
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Category</label>
                   <select id="g-cat" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                    <option>Personal</option><option>Finance</option><option>Fitness</option><option>Learning</option><option>Career</option>
+                    ${getCategoryOptions('goalCategories').map(category => `<option value="${escapeHTML(category)}" ${category === 'Personal' ? 'selected' : ''}>${escapeHTML(category)}</option>`).join('')}
                   </select>
                 </div>
                 <div>
@@ -1912,8 +1978,8 @@
                         <p class="text-xs text-slate-500 mt-0.5">Target date: ${g.deadline || 'None'}</p>
                       </div>
                       <div class="flex gap-1">
-                        <button data-edit-goal="${g.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit goal"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                        <button data-del-goal="${g.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete goal"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button data-edit-goal="${escapeHTML(g.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit goal"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button data-del-goal="${escapeHTML(g.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete goal"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                       </div>
                     </div>
                     <div class="mt-4 flex items-center justify-between text-sm font-semibold tabular-nums">
@@ -1924,8 +1990,8 @@
                       <div class="h-full bg-violet-600 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
                     </div>
                     <div class="mt-3 flex items-center gap-2">
-                      <button data-goal-step="${g.id}" data-delta="${-step}" class="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700">-${step}</button>
-                      <button data-goal-step="${g.id}" data-delta="${step}" class="px-3 py-1 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700">+${step}</button>
+                      <button data-goal-step="${escapeHTML(g.id)}" data-delta="${-step}" class="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700">-${step}</button>
+                      <button data-goal-step="${escapeHTML(g.id)}" data-delta="${step}" class="px-3 py-1 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700">+${step}</button>
                     </div>
                   </div>
                 `;
@@ -1960,7 +2026,7 @@
                         const checked = (h.history || []).includes(d);
                         return `
                           <td class="py-3 px-2 text-center">
-                            <button data-toggle-habit="${h.id}" data-date="${d}" class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition ${
+                            <button data-toggle-habit="${escapeHTML(h.id)}" data-date="${d}" class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition ${
                               checked ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200'
                             }">
                               ${checked ? '<i data-lucide="check" class="w-4 h-4"></i>' : ''}
@@ -1970,8 +2036,8 @@
                       }).join('')}
                       <td class="py-3 pl-4 text-right font-bold text-amber-600 dark:text-amber-400 tabular-nums">${getHabitStreak(h)}d</td>
                       <td class="py-3 pl-2 text-right">
-                        <button data-edit-habit="${h.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit habit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                        <button data-del-habit="${h.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button data-edit-habit="${escapeHTML(h.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit habit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button data-del-habit="${escapeHTML(h.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                       </td>
                     </tr>
                   `).join('')}
@@ -2001,7 +2067,7 @@
         btn.addEventListener('click', () => {
           const goal = state.progress.goals.find(item => item.id === btn.getAttribute('data-edit-goal'));
           if (!goal) return;
-          const categories = ['Personal', 'Finance', 'Fitness', 'Learning', 'Career'];
+          const categories = getCategoryOptions('goalCategories');
           if (!categories.includes(goal.category)) categories.push(goal.category);
           openRecordEditor('Edit Goal', [
             { name: 'title', label: 'Goal Title', value: goal.title, wide: true, required: true },
@@ -2103,7 +2169,7 @@
       const total = state.todos.length;
       const doneCount = state.todos.filter(t => t.done).length;
       const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-      const todoCategories = ['Work', 'Personal', 'Finance', 'Health', 'Learning', 'Other'];
+      const todoCategories = getCategoryOptions('taskCategories');
 
       const filtered = state.todos
         .filter(t => uiState.todoFilterStatus === 'all' || (uiState.todoFilterStatus === 'active' ? !t.done : t.done))
@@ -2136,7 +2202,7 @@
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1">Category</label>
               <select id="todo-category" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                ${todoCategories.map(category => `<option ${category === 'Personal' ? 'selected' : ''}>${category}</option>`).join('')}
+                ${todoCategories.map(category => `<option value="${escapeHTML(category)}" ${category === 'Personal' ? 'selected' : ''}>${escapeHTML(category)}</option>`).join('')}
               </select>
             </div>
             <div>
@@ -2171,7 +2237,7 @@
               ${filtered.map(t => `
                 <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
                   <label class="flex items-center gap-3 min-w-0 cursor-pointer flex-1">
-                    <input type="checkbox" data-toggle-todo="${t.id}" ${t.done ? 'checked' : ''} class="w-4 h-4 rounded text-sky-600" />
+                    <input type="checkbox" data-toggle-todo="${escapeHTML(t.id)}" ${t.done ? 'checked' : ''} class="w-4 h-4 rounded text-sky-600" />
                     <div class="min-w-0">
                       <div class="text-sm font-medium truncate ${t.done ? 'line-through text-slate-400' : ''}">${escapeHTML(t.title)}</div>
                       <div class="text-xs text-slate-500 tabular-nums">${t.dueDate ? `Due: ${t.dueDate}` : 'No due date'}</div>
@@ -2183,8 +2249,8 @@
                       t.priority === 'Medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
                       'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
                     }">${t.priority}</span>
-                    <button data-edit-todo="${t.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit task"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                    <button data-del-todo="${t.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <button data-edit-todo="${escapeHTML(t.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit task"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <button data-del-todo="${escapeHTML(t.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                   </div>
                 </div>
               `).join('') || '<p class="text-sm text-slate-500 text-center py-6">No tasks match your filter.</p>'}
@@ -2278,6 +2344,10 @@
     // -------------------------------------------------------------------------
     function renderNotes(container) {
       const editing = uiState.editingNoteId ? state.notes.find(n => n.id === uiState.editingNoteId) : null;
+      const noteTags = [...new Set([
+        ...getCategoryOptions('noteTags'),
+        ...state.notes.map(note => note.tag).filter(tag => typeof tag === 'string' && tag.trim())
+      ])];
       const filtered = [...state.notes]
         .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updatedAt.localeCompare(a.updatedAt))
         .filter(n => uiState.noteFilterTag === 'all' || n.tag === uiState.noteFilterTag)
@@ -2305,7 +2375,7 @@
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Tag</label>
                 <select id="note-tag" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                  ${['Personal', 'Work', 'Ideas', 'Health', 'Journal'].map(tg => `<option value="${tg}" ${editing && editing.tag === tg ? 'selected' : ''}>${tg}</option>`).join('')}
+                  ${noteTags.map(tag => `<option value="${escapeHTML(tag)}" ${editing && editing.tag === tag ? 'selected' : ''}>${escapeHTML(tag)}</option>`).join('')}
                 </select>
               </div>
               <div>
@@ -2327,7 +2397,7 @@
               <input id="note-search" type="text" value="${escapeHTML(uiState.noteSearch)}" placeholder="Search notes..." class="flex-1 min-w-[180px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm" />
               <select id="note-filter-tag" class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm">
                 <option value="all">All Tags</option>
-                ${['Personal', 'Work', 'Ideas', 'Health', 'Journal'].map(tg => `<option value="${tg}" ${uiState.noteFilterTag === tg ? 'selected' : ''}>${tg}</option>`).join('')}
+              ${noteTags.map(tag => `<option value="${escapeHTML(tag)}" ${uiState.noteFilterTag === tag ? 'selected' : ''}>${escapeHTML(tag)}</option>`).join('')}
               </select>
             </div>
 
@@ -2338,9 +2408,9 @@
                     <div class="flex items-start justify-between gap-2">
                       <h4 class="font-bold text-base">${escapeHTML(n.title)}</h4>
                       <div class="flex items-center gap-1 shrink-0">
-                        <button data-pin-note="${n.id}" class="p-1 rounded-lg ${n.pinned ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}" title="Pin note"><i data-lucide="pin" class="w-4 h-4"></i></button>
-                        <button data-edit-note="${n.id}" class="p-1 text-slate-400 hover:text-indigo-600 rounded-lg" title="Edit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                        <button data-del-note="${n.id}" class="p-1 text-slate-400 hover:text-rose-600 rounded-lg" title="Delete"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button data-pin-note="${escapeHTML(n.id)}" class="p-1 rounded-lg ${n.pinned ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}" title="Pin note"><i data-lucide="pin" class="w-4 h-4"></i></button>
+                        <button data-edit-note="${escapeHTML(n.id)}" class="p-1 text-slate-400 hover:text-indigo-600 rounded-lg" title="Edit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button data-del-note="${escapeHTML(n.id)}" class="p-1 text-slate-400 hover:text-rose-600 rounded-lg" title="Delete"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                       </div>
                     </div>
                     <p class="text-sm text-slate-600 dark:text-slate-300 mt-2 whitespace-pre-line">${escapeHTML(n.content)}</p>
@@ -2434,7 +2504,7 @@
               { id: 'stopwatch', label: 'Stopwatch', icon: 'watch' },
               { id: 'alarm', label: 'Alarm', icon: 'alarm-clock' }
             ].map(tab => `
-              <button data-time-tab="${tab.id}" class="px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-2 transition ${
+              <button data-time-tab="${escapeHTML(tab.id)}" class="px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-2 transition ${
                 uiState.timeSubTab === tab.id ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }">
                 <i data-lucide="${tab.icon}" class="w-4 h-4"></i>
@@ -2603,11 +2673,11 @@
                     </div>
                     <div class="flex items-center gap-3">
                       <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" data-toggle-alarm="${a.id}" ${a.enabled ? 'checked' : ''} class="sr-only peer" />
+                        <input type="checkbox" data-toggle-alarm="${escapeHTML(a.id)}" ${a.enabled ? 'checked' : ''} class="sr-only peer" />
                         <div class="w-11 h-6 bg-slate-300 dark:bg-slate-700 peer-checked:bg-cyan-600 rounded-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
                       </label>
-                      <button data-edit-alarm="${a.id}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit alarm"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                      <button data-del-alarm="${a.id}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete alarm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                      <button data-edit-alarm="${escapeHTML(a.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit alarm"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                      <button data-del-alarm="${escapeHTML(a.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete alarm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                   </div>
                 `).join('') || '<p class="text-sm text-slate-500 text-center py-6">No alarms set.</p>'}
@@ -2673,6 +2743,41 @@
         });
       }
       if (window.lucide) lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------------------
+    // CATEGORY MANAGER
+    // -------------------------------------------------------------------------
+    function renderCategories(container) {
+      container.innerHTML = `
+        <div class="space-y-5">
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+            <h3 class="font-bold">Add your own options</h3>
+            <p class="text-sm text-slate-500 mt-1">Custom options appear in the matching forms and filters. They are saved on this device and included in backups.</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${Object.entries(CATEGORY_GROUPS).map(([key, group]) => `
+              <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+                <h3 class="font-semibold">${escapeHTML(group.label)}</h3>
+                <ul class="flex flex-wrap gap-2">
+                  ${getCategoryOptions(key).map(option => `<li class="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs">${escapeHTML(option)}</li>`).join('')}
+                </ul>
+                <form data-category-form="${escapeHTML(key)}" class="flex gap-2">
+                  <input type="text" maxlength="40" required placeholder="Add an option" aria-label="New ${escapeHTML(group.label.toLowerCase())}" class="min-w-0 flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  <button type="submit" class="shrink-0 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">Add</button>
+                </form>
+              </section>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      container.querySelectorAll('[data-category-form]').forEach(form => {
+        form.addEventListener('submit', event => {
+          event.preventDefault();
+          addCategoryOption(form.getAttribute('data-category-form'), form.querySelector('input').value);
+        });
+      });
     }
 
     // -------------------------------------------------------------------------
