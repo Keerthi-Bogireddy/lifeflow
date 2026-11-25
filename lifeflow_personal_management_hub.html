@@ -426,6 +426,7 @@
       noteSearch: '',
       noteFilterTag: 'all',
       editingNoteId: null,
+      editingPeriodId: null,
       timeSubTab: 'timer'
     };
 
@@ -1478,6 +1479,94 @@
     // -------------------------------------------------------------------------
     // 2. PERIOD TRACKER
     // -------------------------------------------------------------------------
+    function getPeriodDailyDetails(log) {
+      if (!log) return [];
+      const startDate = log.startDate;
+      if (!startDate) return [];
+      const fallbackLength = Number(state.period.periodLength) || 5;
+      const endDate = log.endDate || addDaysISO(startDate, fallbackLength - 1);
+      const dayCount = diffDaysISO(startDate, endDate) + 1;
+      if (!startDate || dayCount < 1 || dayCount > 31) return [];
+
+      const hasDailyDetails = Array.isArray(log.dailyDetails);
+      const byDate = new Map(
+        (hasDailyDetails ? log.dailyDetails : [])
+          .filter(detail => detail && typeof detail.date === 'string')
+          .map(detail => [detail.date, detail])
+      );
+      const legacySymptoms = Array.isArray(log.symptoms) ? log.symptoms : [];
+      const legacyFlow = ['Light', 'Medium', 'Heavy'].includes(log.flow) ? log.flow : 'Medium';
+
+      return Array.from({ length: dayCount }, (_, index) => {
+        const date = addDaysISO(startDate, index);
+        const detail = byDate.get(date);
+        return {
+          date,
+          flow: detail && ['Light', 'Medium', 'Heavy'].includes(detail.flow) ? detail.flow : legacyFlow,
+          symptoms: detail && Array.isArray(detail.symptoms) ? detail.symptoms.filter(value => typeof value === 'string') : legacySymptoms,
+          notes: detail && typeof detail.notes === 'string' ? detail.notes : (!hasDailyDetails && index === 0 ? (log.notes || '') : '')
+        };
+      });
+    }
+
+    function renderPeriodDayFields(startDate, endDate, existingDetails, symptomsList) {
+      if (!startDate || !endDate) {
+        return '<p class="text-sm text-rose-600">Choose a start and end date.</p>';
+      }
+      const dayCount = diffDaysISO(startDate, endDate) + 1;
+      if (dayCount < 1) {
+        return '<p class="text-sm text-rose-600">Choose an end date on or after the start date.</p>';
+      }
+      if (dayCount > 31) {
+        return '<p class="text-sm text-rose-600">A period log can include up to 31 days. Please shorten the date range.</p>';
+      }
+
+      const byDate = new Map(existingDetails.map(detail => [detail.date, detail]));
+      return Array.from({ length: dayCount }, (_, index) => {
+        const date = addDaysISO(startDate, index);
+        const detail = byDate.get(date) || { flow: 'Medium', symptoms: [], notes: '' };
+        const dayLabel = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric'
+        });
+        return `
+          <section data-period-day="${date}" class="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <h4 class="text-sm font-semibold">${escapeHTML(dayLabel)}</h4>
+              <select data-period-flow class="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" aria-label="Flow for ${escapeHTML(dayLabel)}">
+                ${['Light', 'Medium', 'Heavy'].map(flow => `<option value="${flow}" ${detail.flow === flow ? 'selected' : ''}>${flow}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-slate-500 mb-1.5">Symptoms</div>
+              <div class="flex flex-wrap gap-1.5">
+                ${symptomsList.map(symptom => `
+                  <label class="cursor-pointer">
+                    <input type="checkbox" data-period-symptom value="${escapeHTML(symptom)}" ${(detail.symptoms || []).includes(symptom) ? 'checked' : ''} class="peer sr-only" />
+                    <span class="inline-block px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-700 peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 transition">${escapeHTML(symptom)}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+            <label class="block text-xs font-semibold text-slate-500">
+              <span class="block mb-1">Notes</span>
+              <textarea data-period-notes rows="2" placeholder="Optional details for ${escapeHTML(dayLabel)}..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-normal">${escapeHTML(detail.notes || '')}</textarea>
+            </label>
+          </section>
+        `;
+      }).join('');
+    }
+
+    function collectPeriodDayDetails(container) {
+      return Array.from(container.querySelectorAll('[data-period-day]')).map(day => ({
+        date: day.getAttribute('data-period-day'),
+        flow: day.querySelector('[data-period-flow]').value,
+        symptoms: Array.from(day.querySelectorAll('[data-period-symptom]:checked')).map(input => input.value),
+        notes: day.querySelector('[data-period-notes]').value.trim()
+      }));
+    }
+
     function renderPeriod(container) {
       const pred = getPeriodPrediction();
       const now = new Date();
@@ -1488,6 +1577,13 @@
       const firstDayIdx = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const today = todayISO();
+      const editingLog = uiState.editingPeriodId
+        ? state.period.logs.find(log => log.id === uiState.editingPeriodId)
+        : null;
+      const formStartDate = editingLog ? editingLog.startDate : today;
+      const formEndDate = editingLog ? (editingLog.endDate || formStartDate) : addDaysISO(today, 4);
+      const initialDailyDetails = getPeriodDailyDetails(editingLog);
+      const symptomsList = ['Cramps', 'Fatigue', 'Headache', 'Bloating', 'Mood Swings', 'Backache', 'Clear'];
 
       // Build day status lookup
       const loggedDays = new Set();
@@ -1545,8 +1641,6 @@
         `;
       }
 
-      const symptomsList = ['Cramps', 'Fatigue', 'Headache', 'Bloating', 'Mood Swings', 'Backache', 'Clear'];
-
       container.innerHTML = `
         <div class="space-y-6">
           <!-- Cycle Insights -->
@@ -1570,7 +1664,7 @@
               <div class="flex items-center gap-2">
                 <label class="text-xs text-slate-500">Cycle:</label>
                 <input id="cycle-len-input" type="number" min="18" max="45" value="${state.period.cycleLength}" class="w-14 px-2 py-1 text-xs font-bold rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-                <label class="text-xs text-slate-500">Flow:</label>
+                <label class="text-xs text-slate-500">Period:</label>
                 <input id="period-len-input" type="number" min="2" max="12" value="${state.period.periodLength}" class="w-14 px-2 py-1 text-xs font-bold rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
                 <button id="save-cycle-settings" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">Save</button>
               </div>
@@ -1604,41 +1698,27 @@
 
             <!-- Log Period Form -->
             <form id="period-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-              <h3 class="font-bold text-base">Log Period & Symptoms</h3>
+              <div>
+                <h3 class="font-bold text-base">${editingLog ? 'Edit Period Details' : 'Log Period & Daily Details'}</h3>
+                <p class="text-xs text-slate-500 mt-1">Record flow, symptoms, and notes separately for each day.</p>
+              </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Start Date</label>
-                  <input id="p-start" type="date" value="${today}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  <input id="p-start" type="date" value="${formStartDate}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">End Date</label>
-                  <input id="p-end" type="date" value="${addDaysISO(today, 4)}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  <input id="p-end" type="date" value="${formEndDate}" min="${formStartDate}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
                 </div>
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Flow Intensity</label>
-                <select id="p-flow" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                  <option value="Light">Light</option>
-                  <option value="Medium" selected>Medium</option>
-                  <option value="Heavy">Heavy</option>
-                </select>
+              <div id="period-day-details" class="space-y-3">
+                ${renderPeriodDayFields(formStartDate, formEndDate, initialDailyDetails, symptomsList)}
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1.5">Symptoms</label>
-                <div class="flex flex-wrap gap-1.5">
-                  ${symptomsList.map(sym => `
-                    <label class="cursor-pointer">
-                      <input type="checkbox" name="p-symptom" value="${sym}" class="peer sr-only" />
-                      <span class="inline-block px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-700 peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 transition">${sym}</span>
-                    </label>
-                  `).join('')}
-                </div>
+              <div class="flex gap-2">
+                ${editingLog ? '<button id="cancel-period-edit" type="button" class="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold">Cancel</button>' : ''}
+                <button type="submit" class="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition">${editingLog ? 'Update Period Log' : 'Save Period Log'}</button>
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Notes</label>
-                <input id="p-notes" type="text" placeholder="Optional notes..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
-              </div>
-              <button type="submit" class="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition">Save Log</button>
             </form>
           </div>
 
@@ -1646,18 +1726,34 @@
           <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
             <h3 class="font-bold text-base mb-3">Cycle History</h3>
             <div class="space-y-2">
-              ${[...state.period.logs].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(l => `
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                  <div>
-                    <div class="text-sm font-semibold tabular-nums">${l.startDate} → ${l.endDate} <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">${l.flow}</span></div>
-                    <div class="text-xs text-slate-500 mt-1">${(l.symptoms || []).join(', ') || 'No symptoms'}${l.notes ? ` • ${escapeHTML(l.notes)}` : ''}</div>
+              ${[...state.period.logs].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(log => {
+                const dayRows = getPeriodDailyDetails(log).map(detail => {
+                  const dayLabel = new Date(`${detail.date}T00:00:00`).toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                  });
+                  const symptoms = detail.symptoms.length ? detail.symptoms.map(escapeHTML).join(', ') : 'No symptoms';
+                  return `
+                    <div class="rounded-lg bg-white dark:bg-slate-900 px-3 py-2">
+                      <div class="text-xs font-semibold">${escapeHTML(dayLabel)} · ${escapeHTML(detail.flow)} flow</div>
+                      <div class="text-xs text-slate-500 mt-0.5">${symptoms}${detail.notes ? ` · ${escapeHTML(detail.notes)}` : ''}</div>
+                    </div>
+                  `;
+                }).join('');
+                return `
+                  <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="text-sm font-semibold tabular-nums">${escapeHTML(log.startDate)} → ${escapeHTML(log.endDate || log.startDate)}</div>
+                      <div class="flex gap-1 shrink-0">
+                        <button data-edit-period="${escapeHTML(log.id)}" class="px-2 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg" aria-label="Edit daily period details">Edit details</button>
+                        <button data-del-period="${escapeHTML(log.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete period log"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${dayRows}</div>
                   </div>
-                  <div class="self-start sm:self-center flex gap-1">
-                    <button data-edit-period="${escapeHTML(l.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit period log"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                    <button data-del-period="${escapeHTML(l.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete period log"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                  </div>
-                </div>
-              `).join('') || '<p class="text-sm text-slate-500">No period logs yet.</p>'}
+                `;
+              }).join('') || '<p class="text-sm text-slate-500">No period logs yet.</p>'}
             </div>
           </div>
         </div>
@@ -1679,40 +1775,61 @@
       document.getElementById('period-next-mo').addEventListener('click', () => { state.period.viewMonthOffset++; renderActiveView(); });
       document.getElementById('period-today-mo').addEventListener('click', () => { state.period.viewMonthOffset = 0; renderActiveView(); });
 
-      document.getElementById('period-form').addEventListener('submit', (e) => {
+      const periodForm = document.getElementById('period-form');
+      const startInput = document.getElementById('p-start');
+      const endInput = document.getElementById('p-end');
+      const dayDetailsContainer = document.getElementById('period-day-details');
+      const refreshPeriodDayFields = () => {
+        const existingDetails = collectPeriodDayDetails(dayDetailsContainer);
+        endInput.min = startInput.value;
+        dayDetailsContainer.innerHTML = renderPeriodDayFields(startInput.value, endInput.value, existingDetails, symptomsList);
+      };
+      startInput.addEventListener('change', refreshPeriodDayFields);
+      endInput.addEventListener('change', refreshPeriodDayFields);
+
+      const cancelEditButton = document.getElementById('cancel-period-edit');
+      if (cancelEditButton) {
+        cancelEditButton.addEventListener('click', () => {
+          uiState.editingPeriodId = null;
+          renderActiveView();
+        });
+      }
+
+      periodForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const startDate = document.getElementById('p-start').value;
-        const endDate = document.getElementById('p-end').value;
-        const flow = document.getElementById('p-flow').value;
-        const notes = document.getElementById('p-notes').value.trim();
-        const symptoms = Array.from(document.querySelectorAll('input[name="p-symptom"]:checked')).map(el => el.value);
-        if (!startDate) return;
-        state.period.logs.push({ id: uid(), startDate, endDate: endDate >= startDate ? endDate : startDate, flow, symptoms, notes });
+        const startDate = startInput.value;
+        const endDate = endInput.value;
+        if (!startDate || !endDate || endDate < startDate) {
+          showToast('Choose a valid period date range', 'warning');
+          return;
+        }
+        const dailyDetails = collectPeriodDayDetails(dayDetailsContainer);
+        if (dailyDetails.length !== diffDaysISO(startDate, endDate) + 1) {
+          showToast('Add daily details for the selected date range', 'warning');
+          return;
+        }
+
+        const log = editingLog || { id: uid() };
+        log.startDate = startDate;
+        log.endDate = endDate;
+        log.dailyDetails = dailyDetails;
+        log.flow = dailyDetails[0].flow;
+        log.symptoms = [...new Set(dailyDetails.flatMap(detail => detail.symptoms))];
+        log.notes = dailyDetails.filter(detail => detail.notes).map(detail => `${detail.date}: ${detail.notes}`).join('\n');
+        if (!editingLog) state.period.logs.push(log);
+        uiState.editingPeriodId = null;
         saveState();
         renderActiveView();
-        showToast('Period log saved', 'success');
+        showToast(editingLog ? 'Period details updated' : 'Period log saved', 'success');
       });
 
       container.querySelectorAll('[data-edit-period]').forEach(btn => {
         btn.addEventListener('click', () => {
           const log = state.period.logs.find(item => item.id === btn.getAttribute('data-edit-period'));
           if (!log) return;
-          openRecordEditor('Edit Period Log', [
-            { name: 'startDate', label: 'Start Date', type: 'date', value: log.startDate, required: true },
-            { name: 'endDate', label: 'End Date', type: 'date', value: log.endDate, required: true },
-            { name: 'flow', label: 'Flow Intensity', type: 'select', value: log.flow, options: ['Light', 'Medium', 'Heavy'].map(value => ({ value, label: value })) },
-            { name: 'symptoms', label: 'Symptoms (comma-separated)', value: (log.symptoms || []).join(', '), wide: true },
-            { name: 'notes', label: 'Notes', type: 'textarea', value: log.notes || '', wide: true }
-          ], values => {
-            log.startDate = values.startDate;
-            log.endDate = values.endDate >= values.startDate ? values.endDate : values.startDate;
-            log.flow = values.flow;
-            log.symptoms = values.symptoms.split(',').map(value => value.trim()).filter(Boolean);
-            log.notes = values.notes.trim();
-            saveState();
-            renderActiveView();
-            showToast('Period log updated', 'success');
-          });
+          uiState.editingPeriodId = log.id;
+          renderActiveView();
+          document.getElementById('period-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
       });
 

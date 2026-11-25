@@ -2,6 +2,8 @@
 
 LifeFlow is a mobile-friendly personal management app for budgets, period and activity tracking, goals, habits, tasks, notes, timers, and alarms.
 
+The Period Tracker records flow, symptoms, and notes separately for each day in a period, and existing period logs can be edited with daily details.
+
 ## Android app
 
 The `android/` directory contains the Capacitor Android project. A debug APK is included at:
