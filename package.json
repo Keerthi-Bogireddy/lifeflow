@@ -2,7 +2,7 @@
   "name": "lifeflow-personal-hub",
   "version": "1.0.0",
   "private": true,
-  "description": "LifeFlow personal management hub for Android",
+  "description": "Rhythm personal management app for Android",
   "scripts": {
     "build": "tailwindcss -c tailwind.config.cjs -i styles/tailwind.css -o lifeflow.generated.css --minify && node scripts/copy-web-assets.mjs && cap sync android",
     "android:debug": "npm run build && cd android && gradlew.bat assembleDebug"

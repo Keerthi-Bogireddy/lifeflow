@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#4f46e5" />
-  <title>LifeFlow — Personal Management Hub</title>
+  <meta name="theme-color" content="#37132B" />
+  <title>Rhythm — Personal Management Hub</title>
   <link rel="stylesheet" href="./lifeflow.generated.css" />
   <script src="./vendor/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4"></script>
   <script src="./vendor/lucide.min.js" integrity="sha384-ieG+IKD0d/ZPXyCBTMVAbqsQdns8QGJR/e26WMw7M4fkaI/rHcS/YIoi+ah9WGge"></script>
@@ -130,10 +130,8 @@
   <!-- Mobile Top Header -->
   <header class="lg:hidden sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-2.5">
-      <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-sm">
-        <i data-lucide="sparkles" class="w-4 h-4"></i>
-      </div>
-      <span class="font-bold text-lg tracking-tight">LifeFlow</span>
+      <img src="./rhythm-logo.webp" alt="" class="w-8 h-8 rounded-xl object-cover shadow-sm" />
+      <span class="font-bold text-lg tracking-tight">Rhythm</span>
     </div>
     <div class="flex items-center gap-2">
       <button id="mobile-time-pill" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
@@ -156,11 +154,9 @@
   <aside id="sidebar" class="fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-200 shrink-0">
     <div class="p-5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
       <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
-          <i data-lucide="sparkles" class="w-5 h-5"></i>
-        </div>
+        <img src="./rhythm-logo.webp" alt="" class="w-9 h-9 rounded-xl object-cover shadow-sm" />
         <div>
-          <h1 class="font-bold text-base leading-tight">LifeFlow</h1>
+          <h1 class="font-bold text-base leading-tight">Rhythm</h1>
           <p class="text-[11px] text-slate-500 dark:text-slate-400">Personal Hub</p>
         </div>
       </div>
@@ -203,7 +199,6 @@
         </button>
         <div class="text-right">
           <div id="live-clock-display" class="text-sm font-semibold tabular-nums"></div>
-          <div id="active-alarms-badge" class="text-[11px] text-slate-500 dark:text-slate-400"></div>
         </div>
       </div>
     </div>
@@ -275,6 +270,16 @@
       return `${yr}-${mo}-${da}`;
     }
 
+    function formatDateDisplay(value) {
+      const date = value instanceof Date
+        ? value
+        : /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+          ? new Date(`${value}T00:00:00`)
+          : new Date(value);
+      if (!Number.isFinite(date.getTime())) return String(value ?? '');
+      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    }
+
     function addDaysISO(iso, days) {
       const [y, m, d] = iso.split('-').map(Number);
       const dt = new Date(y, m - 1, d);
@@ -295,6 +300,59 @@
       const [year, month, day] = value.split('-').map(Number);
       const date = new Date(Date.UTC(year, month - 1, day));
       return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+    }
+
+    function parseDateDisplay(value) {
+      const input = String(value ?? '').trim();
+      if (isValidISODate(input)) return input;
+      const match = input.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!match) return '';
+      const iso = `${match[3]}-${match[2]}-${match[1]}`;
+      return isValidISODate(iso) ? iso : '';
+    }
+
+    function formatDateInputValue(value) {
+      const digits = String(value ?? '').replace(/\D/g, '').slice(0, 8);
+      if (digits.length <= 2) return digits;
+      if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+      return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    }
+
+    function renderDateInput(id, value, className, required = false, name = '') {
+      const isoValue = isValidISODate(value) ? value : '';
+      const escapedId = escapeHTML(id);
+      const nameAttribute = name ? ` name="${escapeHTML(name)}"` : '';
+      return `<div class="relative">
+        <input id="${escapedId}"${nameAttribute} type="text" inputmode="numeric" autocomplete="off" maxlength="10"
+          pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" placeholder="DD/MM/YYYY" value="${escapeHTML(isoValue ? formatDateDisplay(isoValue) : '')}"
+          data-date-input class="${className} pr-10" ${required ? 'required' : ''} />
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><i data-lucide="calendar-days" class="w-4 h-4"></i></span>
+        <input type="date" value="${escapeHTML(isoValue)}" data-date-picker-for="${escapedId}" aria-hidden="true"
+          tabindex="-1" class="absolute right-0 top-0 h-full w-10 cursor-pointer opacity-0" />
+      </div>`;
+    }
+
+    function bindDateInputEvents() {
+      document.addEventListener('input', event => {
+        const input = event.target;
+        if (!input.matches('[data-date-input]')) return;
+        const digitsBeforeCursor = input.value.slice(0, input.selectionStart).replace(/\D/g, '').length;
+        input.value = formatDateInputValue(input.value);
+        const cursor = digitsBeforeCursor + (digitsBeforeCursor > 2 ? 1 : 0) + (digitsBeforeCursor > 4 ? 1 : 0);
+        input.setSelectionRange(cursor, cursor);
+        const picker = document.querySelector(`[data-date-picker-for="${input.id}"]`);
+        if (picker) picker.value = parseDateDisplay(input.value);
+      });
+
+      document.addEventListener('change', event => {
+        const picker = event.target;
+        if (!picker.matches('[data-date-picker-for]')) return;
+        const input = document.getElementById(picker.getAttribute('data-date-picker-for'));
+        if (!input) return;
+        input.value = picker.value ? formatDateDisplay(picker.value) : '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
     }
 
     const ENTERTAINMENT_TYPES = ['Movie', 'Anime', 'Manhwa','Series','Book'];
@@ -367,7 +425,6 @@
         currency: '₹',
         customOptions: {},
         budget: {
-          monthlyLimit: 45000,
           transactions: [],
           transfers: [],
           profiles: [{ id: 'personal', name: 'Personal', openingBalance: 0 }],
@@ -377,7 +434,8 @@
           cycleLength: 28,
           periodLength: 5,
           viewMonthOffset: 0,
-          logs: []
+          logs: [],
+          dailyEntries: []
         },
         activity: {
           weeklyGoalMinutes: 180,
@@ -390,7 +448,6 @@
         entertainment: [],
         todos: [],
         notes: [],
-        alarms: []
       };
     }
 
@@ -418,9 +475,8 @@
       if (strict && (!parsed.budget || !Array.isArray(parsed.budget.transactions) ||
           !Array.isArray(parsed.todos) || !Array.isArray(parsed.notes) ||
           !Array.isArray(parsed.period?.logs) || !Array.isArray(parsed.activity?.logs) ||
-          !Array.isArray(parsed.progress?.goals) || !Array.isArray(parsed.progress?.habits) ||
-          !Array.isArray(parsed.alarms))) {
-        throw new Error('Backup is missing required LifeFlow data lists.');
+          !Array.isArray(parsed.progress?.goals) || !Array.isArray(parsed.progress?.habits))) {
+        throw new Error('Backup is missing required Rhythm data lists.');
       }
       const entertainment = rawEntertainment
         .filter(item => item && typeof item === 'object' && !Array.isArray(item) &&
@@ -449,12 +505,16 @@
         profile && typeof profile.id === 'string' && profile.id.trim() &&
         typeof profile.name === 'string' && profile.name.trim().length <= 60 &&
         Number.isFinite(Number(profile.openingBalance || 0))
-      ).map(profile => ({
-        ...profile,
-        id: profile.id.trim(),
-        name: profile.name.trim(),
-        openingBalance: Number(profile.openingBalance) || 0
-      }));
+      ).map(profile => {
+        const normalizedProfile = {
+          ...profile,
+          id: profile.id.trim(),
+          name: profile.name.trim(),
+          openingBalance: Number(profile.openingBalance) || 0
+        };
+        delete normalizedProfile.monthlyLimit;
+        return normalizedProfile;
+      });
       if (strict && profiles.length !== rawProfiles.length) {
         throw new Error('Backup contains an invalid financial profile.');
       }
@@ -508,26 +568,62 @@
       if (strict && !validCurrency) throw new Error('Backup contains an unsupported currency setting.');
       const currency = validCurrency ? requestedCurrency : defaults.currency;
 
-      return {
+      const rawDailyEntries = parsed.period?.dailyEntries === undefined ? [] : parsed.period.dailyEntries;
+      if (!Array.isArray(rawDailyEntries)) throw new Error('Period daily details must be a list.');
+      const dailyEntries = rawDailyEntries
+        .filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry) &&
+          isValidISODate(entry.date) && typeof entry.flow === 'string' &&
+          Array.isArray(entry.symptoms) && entry.symptoms.every(symptom => typeof symptom === 'string') &&
+          typeof entry.notes === 'string')
+        .map(entry => ({
+          date: entry.date,
+          flow: entry.flow,
+          symptoms: [...new Set(entry.symptoms)],
+          notes: entry.notes
+        }));
+      if (strict && dailyEntries.length !== rawDailyEntries.length) {
+        throw new Error('Backup contains invalid period daily details.');
+      }
+      if (new Set(dailyEntries.map(entry => entry.date)).size !== dailyEntries.length) {
+        throw new Error('Period daily detail dates must be unique.');
+      }
+
+      const rawActivityLogs = parsed.activity?.logs === undefined ? defaults.activity.logs : parsed.activity.logs;
+      if (!Array.isArray(rawActivityLogs)) throw new Error('Activity records must be a list.');
+      const activityLogs = rawActivityLogs.map(log => {
+        if (!log || typeof log !== 'object' || Array.isArray(log)) return log;
+        const normalizedLog = { ...log };
+        delete normalizedLog.calories;
+        return normalizedLog;
+      });
+      const budget = {
+        ...defaults.budget,
+        ...parsedBudget,
+        profiles,
+        activeProfileId,
+        transactions,
+        transfers
+      };
+      delete budget.monthlyLimit;
+      const normalized = {
         ...defaults,
         ...parsed,
         currency,
         customOptions: parsed.customOptions && typeof parsed.customOptions === 'object' && !Array.isArray(parsed.customOptions)
           ? parsed.customOptions
           : {},
-        budget: {
-          ...defaults.budget,
-          ...parsedBudget,
-          profiles,
-          activeProfileId,
-          transactions,
-          transfers
+        budget,
+        period: {
+          ...defaults.period,
+          ...(parsed.period || {}),
+          dailyEntries
         },
-        period: { ...defaults.period, ...(parsed.period || {}) },
-        activity: { ...defaults.activity, ...(parsed.activity || {}) },
+        activity: { ...defaults.activity, ...(parsed.activity || {}), logs: activityLogs },
         progress: { ...defaults.progress, ...(parsed.progress || {}) },
         entertainment
       };
+      delete normalized.alarms;
+      return normalized;
     }
 
     function getCategoryOptions(key) {
@@ -579,7 +675,7 @@
         if (!raw) return getDefaultState();
         return normalizeStateData(JSON.parse(raw));
       } catch (e) {
-        console.error('Could not load saved LifeFlow data.', e);
+        console.error('Could not load saved Rhythm data.', e);
         return getDefaultState();
       }
     }
@@ -594,7 +690,7 @@
 
     let state = loadState();
 
-    // Ephemeral UI & Timer/Stopwatch/Alarm runtime state
+    // Ephemeral UI & Timer/Stopwatch runtime state
     const uiState = {
       budgetFilterType: 'all',
       budgetFilterCategory: 'all',
@@ -619,6 +715,7 @@
       entertainmentFilterStatus: 'all',
       editingEntertainmentId: null,
       editingPeriodId: null,
+      periodSelectedDate: todayISO(),
       timeSubTab: 'timer'
     };
 
@@ -636,61 +733,8 @@
         rafId: null,
         laps: []
       },
-      alarmCheckIntervalId: null,
-      lastTriggeredMinuteKey: null,
-      audioCtx: null,
-      ringingIntervalId: null,
       charts: {}
     };
-
-    // =========================================================================
-    // AUDIO SYNTHESIS (Web Audio API - no external audio files needed)
-    // =========================================================================
-    function getAudioCtx() {
-      if (!runtime.audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) runtime.audioCtx = new AudioContext();
-      }
-      if (runtime.audioCtx && runtime.audioCtx.state === 'suspended') {
-        runtime.audioCtx.resume().catch(() => {});
-      }
-      return runtime.audioCtx;
-    }
-
-    function playChimePattern() {
-      try {
-        const ctx = getAudioCtx();
-        if (!ctx) return;
-        const now = ctx.currentTime;
-        const freqs = [587.33, 783.99, 987.77];
-        freqs.forEach((f, idx) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(f, now + idx * 0.14);
-          gain.gain.setValueAtTime(0.001, now + idx * 0.14);
-          gain.gain.exponentialRampToValueAtTime(0.18, now + idx * 0.14 + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.45);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(now + idx * 0.14);
-          osc.stop(now + idx * 0.14 + 0.46);
-        });
-      } catch (e) {}
-    }
-
-    function startRingingLoop() {
-      stopRingingLoop();
-      playChimePattern();
-      runtime.ringingIntervalId = setInterval(playChimePattern, 1800);
-    }
-
-    function stopRingingLoop() {
-      if (runtime.ringingIntervalId) {
-        clearInterval(runtime.ringingIntervalId);
-        runtime.ringingIntervalId = null;
-      }
-    }
 
     // =========================================================================
     // TOAST & IN-PAGE MODAL HELPERS
@@ -740,7 +784,6 @@
       const modal = document.getElementById('app-modal');
       modal.classList.add('hidden');
       modal.classList.remove('flex');
-      stopRingingLoop();
     }
 
     function escapeHTML(str) {
@@ -773,6 +816,8 @@
           ${escapeHTML(field.checkboxLabel || field.label)}
         </label>`;
         return `<div class="${wrapperClass}">${control}</div>`;
+      } else if (field.type === 'date') {
+        control = renderDateInput(`editor-${field.name}`, field.value, inputClass, Boolean(field.required), field.name);
       } else {
         control = `<input name="${field.name}" type="${field.type || 'text'}" value="${value}" class="${inputClass}"
           ${field.min !== undefined ? `min="${field.min}"` : ''}
@@ -794,6 +839,15 @@
       form.onsubmit = (event) => {
         event.preventDefault();
         const values = Object.fromEntries(new FormData(form).entries());
+        for (const field of fields) {
+          if (field.type !== 'date') continue;
+          const date = String(values[field.name] || '');
+          if (date && !parseDateDisplay(date)) {
+            showToast(`Enter a valid ${field.label.toLowerCase()} as DD/MM/YYYY`, 'warning');
+            return;
+          }
+          values[field.name] = parseDateDisplay(date);
+        }
         onSave(values);
         closeRecordEditor();
       };
@@ -825,7 +879,7 @@
       { id: 'progress', label: 'Progress Trackers', icon: 'target', color: 'text-violet-500' },
       { id: 'todos', label: 'To-Do List', icon: 'check-square', color: 'text-sky-500' },
       { id: 'notes', label: 'Notes', icon: 'sticky-note', color: 'text-amber-500' },
-      { id: 'time', label: 'Timer, Stopwatch & Alarm', icon: 'timer', color: 'text-cyan-500' },
+      { id: 'time', label: 'Timer & Stopwatch', icon: 'timer', color: 'text-cyan-500' },
       { id: 'categories', label: 'Manage Categories', icon: 'tags', color: 'text-indigo-500' },
       { id: 'sync', label: 'Sync & Backup', icon: 'refresh-cw', color: 'text-indigo-500' }
     ];
@@ -930,12 +984,7 @@
       const expense = tx.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
       const openingBalance = getBudgetProfiles().reduce((sum, profile) => sum + Number(profile.openingBalance || 0), 0);
       const balance = openingBalance + income - expense;
-      const limit = Number(state.budget.monthlyLimit) || 0;
-      const currentMonth = todayISO().slice(0, 7);
-      const monthExpense = tx.filter(t => t.type === 'expense' && typeof t.date === 'string' && t.date.startsWith(currentMonth))
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-      const limitUsedPct = limit > 0 ? Math.min(100, Math.round((monthExpense / limit) * 100)) : 0;
-      return { income, expense, balance, limit, limitUsedPct, monthExpense };
+      return { income, expense, balance };
     }
 
     function getBudgetProfiles() {
@@ -999,10 +1048,9 @@
       const todayMins = state.activity.logs.filter(l => l.date === today).reduce((s, l) => s + Number(l.duration), 0);
       const weekLogs = state.activity.logs.filter(l => l.date >= weekStart && l.date <= today);
       const weekMins = weekLogs.reduce((s, l) => s + Number(l.duration), 0);
-      const weekCalories = weekLogs.reduce((s, l) => s + Number(l.calories), 0);
       const goal = Number(state.activity.weeklyGoalMinutes) || 180;
       const pct = goal > 0 ? Math.min(100, Math.round((weekMins / goal) * 100)) : 0;
-      return { todayMins, weekMins, weekCalories, goal, pct };
+      return { todayMins, weekMins, goal, pct };
     }
 
     function getHabitStreak(habit) {
@@ -1039,19 +1087,16 @@
     }
 
     // =========================================================================
-    // LIVE CLOCK, TIMER, STOPWATCH & ALARM ENGINE
+    // LIVE CLOCK, TIMER & STOPWATCH
     // =========================================================================
-    function updateLiveClockAndAlarms() {
+    function updateLiveClock() {
       const now = new Date();
-      const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const dateStr = `${now.toLocaleDateString(undefined, { weekday: 'long' })} · ${formatDateDisplay(now)}`;
       const timeStr = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const dateEl = document.getElementById('live-date-display');
       const clockEl = document.getElementById('live-clock-display');
-      const badgeEl = document.getElementById('active-alarms-badge');
       if (dateEl) dateEl.textContent = dateStr;
       if (clockEl) clockEl.textContent = timeStr;
-      const activeAlarms = state.alarms.filter(a => a.enabled).length;
-      if (badgeEl) badgeEl.textContent = activeAlarms > 0 ? `${activeAlarms} alarm${activeAlarms > 1 ? 's' : ''} active` : 'No active alarms';
 
       // Update status pill if timer or stopwatch is running
       const pillTexts = [];
@@ -1071,54 +1116,6 @@
         if (mPill) { mPill.classList.add('hidden'); mPill.classList.remove('inline-flex'); }
       }
 
-      // Update alarm live clock in Time view if visible
-      const alarmBigClock = document.getElementById('alarm-big-clock');
-      if (alarmBigClock) alarmBigClock.textContent = timeStr;
-
-      // Check alarms at exact HH:MM match once per minute
-      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const minuteKey = `${todayISO()}_${hhmm}`;
-      if (now.getSeconds() === 0 && runtime.lastTriggeredMinuteKey !== minuteKey) {
-        const matched = state.alarms.filter(a => a.enabled && a.time === hhmm);
-        if (matched.length > 0) {
-          runtime.lastTriggeredMinuteKey = minuteKey;
-          triggerAlarmModal(matched[0]);
-        }
-      }
-    }
-
-    function triggerAlarmModal(alarm) {
-      startRingingLoop();
-      openModal({
-        title: `Alarm: ${alarm.label || alarm.time}`,
-        body: `It's ${alarm.time}. Your scheduled alarm is ringing.`,
-        icon: 'alarm-clock',
-        actions: [
-          {
-            label: 'Snooze 5 min',
-            className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 transition',
-            onClick: () => {
-              const snoozeDate = new Date(Date.now() + 5 * 60000);
-              const snoozeTime = `${String(snoozeDate.getHours()).padStart(2, '0')}:${String(snoozeDate.getMinutes()).padStart(2, '0')}`;
-              state.alarms.push({ id: uid(), time: snoozeTime, label: `${alarm.label || 'Alarm'} (Snoozed)`, enabled: true, repeat: 'Once' });
-              saveState();
-              if (state.activeTab === 'time') renderActiveView();
-              showToast(`Snoozed until ${snoozeTime}`, 'info');
-            }
-          },
-          {
-            label: 'Dismiss',
-            className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition',
-            onClick: () => {
-              if (alarm.repeat === 'Once') {
-                alarm.enabled = false;
-                saveState();
-                if (state.activeTab === 'time') renderActiveView();
-              }
-            }
-          }
-        ]
-      });
     }
 
     function startTimer() {
@@ -1126,7 +1123,6 @@
       if (runtime.timer.remainingSeconds <= 0) {
         runtime.timer.remainingSeconds = runtime.timer.totalSeconds;
       }
-      getAudioCtx();
       runtime.timer.running = true;
       if (runtime.timer.intervalId) clearInterval(runtime.timer.intervalId);
       runtime.timer.intervalId = setInterval(() => {
@@ -1134,7 +1130,6 @@
         updateTimerDOM();
         if (runtime.timer.remainingSeconds <= 0) {
           pauseTimer();
-          startRingingLoop();
           openModal({
             title: 'Timer Complete!',
             body: 'Your countdown timer has finished.',
@@ -1255,7 +1250,7 @@
       const a = getActivityStats();
       const currentHour = new Date().getHours();
       const greeting = currentHour < 12 ? 'morning' : currentHour < 17 ? 'afternoon' : 'evening';
-      const todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+      const todayLabel = `${new Date().toLocaleDateString(undefined, { weekday: 'long' })} · ${formatDateDisplay(new Date())}`;
       const pendingTodos = state.todos.filter(t => !t.done);
       const avgGoalPct = state.progress.goals.length
         ? Math.round(state.progress.goals.reduce((s, g) => s + Math.min(100, (g.current / (g.target || 1)) * 100), 0) / state.progress.goals.length)
@@ -1283,7 +1278,7 @@
                 <span class="dashboard-stat-icon p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"><i data-lucide="wallet" class="w-4 h-4"></i></span>
               </div>
               <div class="dashboard-stat-value font-bold mt-3 tabular-nums">${formatMoney(b.balance)}</div>
-              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">${b.limitUsedPct}% of ${formatMoney(b.limit)} monthly limit</div>
+              <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">Across all profiles</div>
             </button>
 
             <button data-jump="period" style="--card-accent: #f43f5e" class="dashboard-stat-card text-left border p-4 sm:p-5 transition">
@@ -1376,7 +1371,7 @@
               </div>
 
               <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <div class="text-xs text-slate-500 dark:text-slate-400">Need a focus timer, stopwatch, or alarm?</div>
+                <div class="text-xs text-slate-500 dark:text-slate-400">Need a focus timer or stopwatch?</div>
                 <button data-jump="time" class="px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition inline-flex items-center gap-1.5">
                   <i data-lucide="timer" class="w-3.5 h-3.5"></i> Open Time Tools
                 </button>
@@ -1512,18 +1507,7 @@
       const balance = selectedProfile
         ? getProfileBalance(selectedProfile.id)
         : getBudgetProfiles().reduce((sum, profile) => sum + Number(profile.openingBalance || 0), 0) + income - expense;
-      const monthlyLimit = selectedProfile
-        ? Number(selectedProfile.monthlyLimit ?? state.budget.monthlyLimit) || 0
-        : Number(state.budget.monthlyLimit) || 0;
-      const monthExpense = transactions.filter(t => t.type === 'expense' && typeof t.date === 'string' && t.date.startsWith(todayISO().slice(0, 7)))
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-      const stats = {
-        income,
-        expense,
-        balance,
-        limit: monthlyLimit,
-        limitUsedPct: monthlyLimit > 0 ? Math.min(100, Math.round((monthExpense / monthlyLimit) * 100)) : 0
-      };
+      const stats = { income, expense, balance };
       const filtered = transactions
         .filter(t => uiState.budgetFilterType === 'all' || t.type === uiState.budgetFilterType)
         .filter(t => uiState.budgetFilterCategory === 'all' || t.category === uiState.budgetFilterCategory)
@@ -1539,7 +1523,7 @@
       container.innerHTML = `
         <div class="space-y-6">
           <!-- Summary Cards -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Total Income</div>
               <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2 tabular-nums">${formatMoney(stats.income)}</div>
@@ -1551,16 +1535,6 @@
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Net Balance</div>
               <div class="text-2xl font-bold mt-2 tabular-nums ${stats.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}">${formatMoney(stats.balance)}</div>
-            </div>
-            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-              <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Monthly Limit</span>
-              <div class="flex items-center gap-2 mt-2">
-                <input id="budget-limit-input" type="number" min="0" value="${stats.limit}" class="w-28 text-lg font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 tabular-nums" />
-                <button id="save-limit-btn" class="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Set</button>
-              </div>
-              <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
-                <div class="h-full rounded-full ${stats.limitUsedPct > 90 ? 'bg-rose-500' : 'bg-emerald-500'}" style="width: ${stats.limitUsedPct}%"></div>
-              </div>
             </div>
           </div>
 
@@ -1597,7 +1571,7 @@
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Date</label>
-                  <input id="tx-date" type="date" value="${escapeHTML(uiState.budgetEntryDate || todayISO())}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  ${renderDateInput('tx-date', uiState.budgetEntryDate || todayISO(), 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true)}
                 </div>
               </div>
               <div>
@@ -1655,7 +1629,7 @@
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                   ${filtered.map(t => `
                     <tr>
-                      <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">${escapeHTML(t.date)}</td>
+                      <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">${escapeHTML(formatDateDisplay(t.date))}</td>
                       <td class="py-3 pr-4 font-medium">${escapeHTML(t.desc)}</td>
                       <td class="py-3 pr-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">${escapeHTML((getBudgetProfile(t.profileId) || {}).name || 'Personal')}</td>
                       <td class="py-3 pr-4"><span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800">${escapeHTML(t.category)}</span></td>
@@ -1683,17 +1657,6 @@
       `;
 
       // Bindings
-      document.getElementById('save-limit-btn').addEventListener('click', () => {
-        const val = Number(document.getElementById('budget-limit-input').value);
-        if (val >= 0) {
-          if (selectedProfile) selectedProfile.monthlyLimit = val;
-          else state.budget.monthlyLimit = val;
-          saveState();
-          renderActiveView();
-          showToast('Monthly budget limit updated', 'success');
-        }
-      });
-
       document.getElementById('budget-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const type = document.querySelector('input[name="tx-type"]:checked').value;
@@ -1701,7 +1664,7 @@
         const category = document.getElementById('tx-category').value;
         const paymentMethod = document.getElementById('tx-payment-method').value;
         const profileId = document.getElementById('tx-profile').value;
-        const date = document.getElementById('tx-date').value;
+        const date = parseDateDisplay(document.getElementById('tx-date').value);
         const desc = document.getElementById('tx-desc').value.trim();
         if (!Number.isFinite(amount) || amount <= 0 || !desc || !isValidISODate(date) || !getBudgetProfile(profileId)) {
           showToast('Enter a valid amount, date, profile, and description', 'warning');
@@ -1827,7 +1790,7 @@
         const totals = dailyTotals.get(date) || { income: 0, expense: 0 };
         const isSelected = date === selectedDate;
         return `
-          <button type="button" data-budget-calendar-date="${date}" aria-label="${escapeHTML(date)}: ${formatMoney(totals.expense)} expenses, ${formatMoney(totals.income)} income" class="min-h-20 sm:min-h-24 rounded-xl border p-1.5 text-left flex flex-col ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'} ${date === todayISO() ? 'bg-indigo-50/70 dark:bg-indigo-950/30' : 'bg-white dark:bg-slate-900'}">
+          <button type="button" data-budget-calendar-date="${date}" aria-label="${escapeHTML(formatDateDisplay(date))}: ${formatMoney(totals.expense)} expenses, ${formatMoney(totals.income)} income" class="min-h-20 sm:min-h-24 rounded-xl border p-1.5 text-left flex flex-col ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200 dark:border-slate-700'} ${date === todayISO() ? 'bg-indigo-50/70 dark:bg-indigo-950/30' : 'bg-white dark:bg-slate-900'}">
             <span class="text-xs font-semibold">${day}</span>
             ${totals.expense ? `<span class="mt-1 text-[10px] leading-tight text-rose-600">${formatMoney(totals.expense)}</span>` : ''}
             ${totals.income ? `<span class="text-[10px] leading-tight text-emerald-600">${formatMoney(totals.income)}</span>` : ''}
@@ -1866,7 +1829,7 @@
           <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
               <div>
-                <h3 class="font-bold">${escapeHTML(new Date(`${selectedDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }))}</h3>
+                <h3 class="font-bold">${escapeHTML(new Date(`${selectedDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' }))} · ${escapeHTML(formatDateDisplay(selectedDate))}</h3>
                 <p class="text-xs text-slate-500 mt-1">${dayTransactions.length} transaction${dayTransactions.length === 1 ? '' : 's'} · ${dayTransfers.length} transfer${dayTransfers.length === 1 ? '' : 's'}</p>
               </div>
               <div class="flex gap-3 text-xs font-semibold">
@@ -1968,7 +1931,7 @@
       const categoryEntries = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
       const totalTransferAmount = transfers.reduce((sum, transfer) => sum + Number(transfer.amount), 0);
       const periodLabel = validRange
-        ? `${new Date(`${startDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} – ${new Date(`${endDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+        ? `${formatDateDisplay(startDate)} – ${formatDateDisplay(endDate)}`
         : 'Choose a valid date range';
 
       container.innerHTML = `
@@ -1996,11 +1959,11 @@
               ` : `
                 <label class="block text-xs font-semibold text-slate-500">
                   <span class="block mb-1">From</span>
-                  <input id="budget-report-start" type="date" value="${escapeHTML(uiState.budgetReportStart)}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  ${renderDateInput('budget-report-start', uiState.budgetReportStart, 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true)}
                 </label>
                 <label class="block text-xs font-semibold text-slate-500">
                   <span class="block mb-1">To</span>
-                  <input id="budget-report-end" type="date" value="${escapeHTML(uiState.budgetReportEnd)}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  ${renderDateInput('budget-report-end', uiState.budgetReportEnd, 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true)}
                 </label>
               `}
               <button type="submit" class="py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">Show report</button>
@@ -2028,7 +1991,7 @@
             <section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
               <h3 class="font-bold mb-3">Transactions in period</h3>
               <div class="divide-y divide-slate-100 dark:divide-slate-800">
-                ${transactions.slice().sort((a, b) => b.date.localeCompare(a.date)).map(transaction => `<div class="py-2.5 flex justify-between gap-3 text-sm"><span class="min-w-0"><span class="font-medium">${escapeHTML(transaction.date)} · ${escapeHTML(transaction.desc)}</span><span class="block text-xs text-slate-500">${escapeHTML(transaction.category || 'Other')} · ${escapeHTML((getBudgetProfile(transaction.profileId) || {}).name || 'Personal')}</span></span><strong class="shrink-0 ${transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">${transaction.type === 'income' ? '+' : '−'}${formatMoney(transaction.amount)}</strong></div>`).join('') || '<p class="py-4 text-sm text-center text-slate-500">No transactions in this period.</p>'}
+                ${transactions.slice().sort((a, b) => b.date.localeCompare(a.date)).map(transaction => `<div class="py-2.5 flex justify-between gap-3 text-sm"><span class="min-w-0"><span class="font-medium">${escapeHTML(formatDateDisplay(transaction.date))} · ${escapeHTML(transaction.desc)}</span><span class="block text-xs text-slate-500">${escapeHTML(transaction.category || 'Other')} · ${escapeHTML((getBudgetProfile(transaction.profileId) || {}).name || 'Personal')}</span></span><strong class="shrink-0 ${transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">${transaction.type === 'income' ? '+' : '−'}${formatMoney(transaction.amount)}</strong></div>`).join('') || '<p class="py-4 text-sm text-center text-slate-500">No transactions in this period.</p>'}
               </div>
             </section>
           ` : ''}
@@ -2049,8 +2012,14 @@
           const value = document.getElementById('budget-report-year').value;
           if (value && Number(value) >= 1900 && Number(value) <= 2200) uiState.budgetReportDate = `${value}-01-01`;
         } else {
-          uiState.budgetReportStart = document.getElementById('budget-report-start').value;
-          uiState.budgetReportEnd = document.getElementById('budget-report-end').value;
+          const startDate = parseDateDisplay(document.getElementById('budget-report-start').value);
+          const endDate = parseDateDisplay(document.getElementById('budget-report-end').value);
+          if (!startDate || !endDate || endDate < startDate) {
+            showToast('Choose a valid date range using DD/MM/YYYY', 'warning');
+            return;
+          }
+          uiState.budgetReportStart = startDate;
+          uiState.budgetReportEnd = endDate;
         }
         renderActiveView();
       });
@@ -2133,7 +2102,7 @@
                   <input name="amount" type="number" min="0.01" step="0.01" required class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
                 </label>
                 <label class="block text-xs font-semibold text-slate-500">Date
-                  <input name="date" type="date" value="${todayISO()}" required class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  ${renderDateInput('transfer-date', todayISO(), 'mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true, 'date')}
                 </label>
               </div>
               <label class="block text-xs font-semibold text-slate-500">Note
@@ -2148,7 +2117,7 @@
               ${transfers.map(transfer => `
                 <div class="py-3 flex items-center justify-between gap-3">
                   <div>
-                    <div class="text-sm font-medium">${escapeHTML(transfer.date)} · ${escapeHTML((getBudgetProfile(transfer.fromProfileId) || {}).name || 'Unknown')} → ${escapeHTML((getBudgetProfile(transfer.toProfileId) || {}).name || 'Unknown')}</div>
+                    <div class="text-sm font-medium">${escapeHTML(formatDateDisplay(transfer.date))} · ${escapeHTML((getBudgetProfile(transfer.fromProfileId) || {}).name || 'Unknown')} → ${escapeHTML((getBudgetProfile(transfer.toProfileId) || {}).name || 'Unknown')}</div>
                     <div class="text-xs text-slate-500 mt-0.5">${escapeHTML(transfer.desc || 'Profile transfer')}</div>
                   </div>
                   <div class="flex items-center gap-2">
@@ -2189,7 +2158,7 @@
         const fromProfileId = String(formData.get('fromProfileId') || '');
         const toProfileId = String(formData.get('toProfileId') || '');
         const amount = Number(formData.get('amount'));
-        const date = String(formData.get('date') || '');
+        const date = parseDateDisplay(String(formData.get('date') || ''));
         const desc = String(formData.get('desc') || '').trim();
         if (!getBudgetProfile(fromProfileId) || !getBudgetProfile(toProfileId) || fromProfileId === toProfileId ||
             !Number.isFinite(amount) || amount <= 0 || !date) {
@@ -2302,11 +2271,7 @@
           ...symptomsList,
           ...(Array.isArray(detail.symptoms) ? detail.symptoms.filter(symptom => typeof symptom === 'string') : [])
         ])];
-        const dayLabel = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
-          weekday: 'long',
-          month: 'short',
-          day: 'numeric'
-        });
+        const dayLabel = `${new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long' })} · ${formatDateDisplay(date)}`;
         return `
           <section data-period-day="${date}" class="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-3">
             <div class="flex items-center justify-between gap-3">
@@ -2344,6 +2309,40 @@
       }));
     }
 
+    function renderPeriodDailySymptomOptions(symptomsList, selectedSymptoms) {
+      const selected = new Set(selectedSymptoms);
+      return [...new Set([...symptomsList, ...selectedSymptoms])].map(symptom => `
+        <label class="cursor-pointer">
+          <input type="checkbox" data-period-daily-symptom value="${escapeHTML(symptom)}" ${selected.has(symptom) ? 'checked' : ''} class="peer sr-only" />
+          <span class="inline-block px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-700 peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 transition">${escapeHTML(symptom)}</span>
+        </label>
+      `).join('');
+    }
+
+    function getPeriodDailyEntry(date) {
+      const standaloneEntry = state.period.dailyEntries.find(entry => entry && entry.date === date);
+      if (standaloneEntry) return standaloneEntry;
+
+      const cycle = state.period.logs.find(log => {
+        const endDate = log.endDate || addDaysISO(log.startDate, (Number(state.period.periodLength) || 5) - 1);
+        return date >= log.startDate && date <= endDate;
+      });
+      return cycle
+        ? getPeriodDailyDetails(cycle).find(detail => detail.date === date) || { date, flow: '', symptoms: [], notes: '' }
+        : { date, flow: '', symptoms: [], notes: '' };
+    }
+
+    function getAllPeriodDailyEntries() {
+      const entriesByDate = new Map();
+      state.period.logs.forEach(log => {
+        getPeriodDailyDetails(log).forEach(entry => entriesByDate.set(entry.date, entry));
+      });
+      state.period.dailyEntries.forEach(entry => {
+        if (entry && isValidISODate(entry.date)) entriesByDate.set(entry.date, entry);
+      });
+      return [...entriesByDate.values()].sort((a, b) => b.date.localeCompare(a.date));
+    }
+
     function renderPeriod(container) {
       const pred = getPeriodPrediction();
       const now = new Date();
@@ -2354,6 +2353,8 @@
       const firstDayIdx = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const today = todayISO();
+      const selectedDailyDate = uiState.periodSelectedDate || today;
+      const selectedDailyEntry = getPeriodDailyEntry(selectedDailyDate);
       const editingLog = uiState.editingPeriodId
         ? state.period.logs.find(log => log.id === uiState.editingPeriodId)
         : null;
@@ -2361,9 +2362,12 @@
       const formEndDate = editingLog ? (editingLog.endDate || formStartDate) : addDaysISO(today, 4);
       const initialDailyDetails = getPeriodDailyDetails(editingLog);
       const symptomsList = getCategoryOptions('periodSymptoms');
+      const selectedFlowOptions = [...new Set([selectedDailyEntry.flow, ...getCategoryOptions('periodFlows')])];
+      const selectedSymptoms = [...new Set([...symptomsList, ...(selectedDailyEntry.symptoms || [])])];
 
       // Build day status lookup
       const loggedDays = new Set();
+      const dailyEntryDays = new Set();
       state.period.logs.forEach(log => {
         let cur = log.startDate;
         const end = log.endDate || addDaysISO(log.startDate, pred.periodLen - 1);
@@ -2373,6 +2377,9 @@
           cur = addDaysISO(cur, 1);
           guard++;
         }
+      });
+      state.period.dailyEntries.forEach(entry => {
+        if (entry && isValidISODate(entry.date)) dailyEntryDays.add(entry.date);
       });
 
       const predictedDays = new Set();
@@ -2400,6 +2407,7 @@
       for (let d = 1; d <= daysInMonth; d++) {
         const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const isLogged = loggedDays.has(iso);
+        const hasDailyEntry = dailyEntryDays.has(iso);
         const isPredicted = predictedDays.has(iso);
         const isOvulation = iso === pred.ovulationDay;
         const isFertile = fertileDays.has(iso);
@@ -2407,14 +2415,16 @@
 
         let cellClass = 'bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300';
         if (isLogged) cellClass = 'bg-rose-500 text-white font-bold shadow-sm';
+        else if (hasDailyEntry) cellClass = 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 font-semibold';
         else if (isPredicted) cellClass = 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-dashed border-rose-400 font-semibold';
         else if (isOvulation) cellClass = 'bg-teal-500 text-white font-bold';
         else if (isFertile) cellClass = 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800';
 
+        const isSelectedDay = iso === selectedDailyDate;
         calCells += `
-          <div class="h-10 rounded-xl flex items-center justify-center text-xs relative ${cellClass} ${isToday ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-900' : ''}">
+          <button type="button" data-period-date="${iso}" aria-label="Select details for ${escapeHTML(formatDateDisplay(iso))}" class="h-10 rounded-xl flex items-center justify-center text-xs relative ${cellClass} ${isToday ? 'ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-900' : ''} ${isSelectedDay ? 'outline outline-2 outline-offset-2 outline-indigo-500' : ''}">
             ${d}
-          </div>
+          </button>
         `;
       }
 
@@ -2428,13 +2438,13 @@
             </div>
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500">Next Predicted Period</div>
-              <div class="text-xl font-bold mt-2 tabular-nums">${pred.nextStart || 'Log a period'}</div>
+              <div class="text-xl font-bold mt-2 tabular-nums">${pred.nextStart ? formatDateDisplay(pred.nextStart) : 'Log a period'}</div>
               <div class="text-xs text-slate-500 mt-0.5">${pred.daysUntil !== null ? `In ${pred.daysUntil} day${pred.daysUntil === 1 ? '' : 's'}` : ''}</div>
             </div>
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500">Estimated Fertile Window</div>
-              <div class="text-sm font-bold text-teal-600 dark:text-teal-400 mt-2 tabular-nums">${pred.fertileStart ? `${pred.fertileStart} to ${pred.fertileEnd}` : '—'}</div>
-              <div class="text-xs text-slate-500 mt-0.5">${pred.ovulationDay ? `Ovulation: ${pred.ovulationDay}` : ''}</div>
+              <div class="text-sm font-bold text-teal-600 dark:text-teal-400 mt-2 tabular-nums">${pred.fertileStart ? `${formatDateDisplay(pred.fertileStart)} to ${formatDateDisplay(pred.fertileEnd)}` : '—'}</div>
+              <div class="text-xs text-slate-500 mt-0.5">${pred.ovulationDay ? `Ovulation: ${formatDateDisplay(pred.ovulationDay)}` : ''}</div>
             </div>
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-2">
               <div class="text-xs font-semibold uppercase text-slate-500">Cycle Settings (Days)</div>
@@ -2467,26 +2477,56 @@
               </div>
               <div class="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
                 <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-rose-500"></span> Logged Period</span>
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-indigo-100 border border-indigo-400"></span> Daily Details</span>
                 <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-rose-200 border border-dashed border-rose-500"></span> Predicted Period</span>
                 <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-teal-100 border border-teal-400"></span> Fertile Window</span>
                 <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-teal-500"></span> Ovulation</span>
               </div>
             </div>
 
+            <div class="space-y-6">
+            <form id="period-daily-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <div>
+                <h3 class="font-bold text-base">Daily Details</h3>
+                <p class="text-xs text-slate-500 mt-1">Select any date to record that day’s flow, symptoms, and notes.</p>
+              </div>
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Date</span>
+                ${renderDateInput('period-daily-date', selectedDailyDate, 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true)}
+              </label>
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Flow</span>
+                <select id="period-daily-flow" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
+                  ${selectedFlowOptions.map(flow => `<option value="${escapeHTML(flow)}" ${selectedDailyEntry.flow === flow ? 'selected' : ''}>${escapeHTML(flow || 'No flow recorded')}</option>`).join('')}
+                </select>
+              </label>
+              <div>
+                <div class="text-xs font-semibold text-slate-500 mb-1.5">Symptoms</div>
+                <div class="flex flex-wrap gap-1.5">
+                  ${renderPeriodDailySymptomOptions(symptomsList, selectedDailyEntry.symptoms || [])}
+                </div>
+              </div>
+              <label class="block text-xs font-semibold text-slate-500">
+                <span class="block mb-1">Notes</span>
+                <textarea id="period-daily-notes" rows="3" placeholder="Optional details for this day" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-normal">${escapeHTML(selectedDailyEntry.notes || '')}</textarea>
+              </label>
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition">Save Daily Details</button>
+            </form>
+
             <!-- Log Period Form -->
             <form id="period-form" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
               <div>
-                <h3 class="font-bold text-base">${editingLog ? 'Edit Period Details' : 'Log Period & Daily Details'}</h3>
-                <p class="text-xs text-slate-500 mt-1">Record flow, symptoms, and notes separately for each day.</p>
+                <h3 class="font-bold text-base">${editingLog ? 'Edit Period Cycle' : 'Log Period Cycle'}</h3>
+                <p class="text-xs text-slate-500 mt-1">Set the cycle dates here. Use Daily Details above to edit one date at a time.</p>
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Start Date</label>
-                  <input id="p-start" type="date" value="${formStartDate}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  ${renderDateInput('p-start', formStartDate, 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true)}
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">End Date</label>
-                  <input id="p-end" type="date" value="${formEndDate}" min="${formStartDate}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  ${renderDateInput('p-end', formEndDate, 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true)}
                 </div>
               </div>
               <div id="period-day-details" class="space-y-3">
@@ -2497,6 +2537,23 @@
                 <button type="submit" class="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition">${editingLog ? 'Update Period Log' : 'Save Period Log'}</button>
               </div>
             </form>
+            </div>
+          </div>
+
+          <!-- Daily History -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+            <h3 class="font-bold text-base mb-3">Daily Details History</h3>
+            <div class="space-y-2">
+              ${getAllPeriodDailyEntries().map(entry => `
+                <div class="flex items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold">${escapeHTML(formatDateDisplay(entry.date))} · ${entry.flow ? `${escapeHTML(entry.flow)} flow` : 'No flow recorded'}</div>
+                    <div class="text-xs text-slate-500 mt-0.5">${entry.symptoms && entry.symptoms.length ? entry.symptoms.map(escapeHTML).join(', ') : 'No symptoms'}${entry.notes ? ` · ${escapeHTML(entry.notes)}` : ''}</div>
+                  </div>
+                  <button type="button" data-edit-period-day="${escapeHTML(entry.date)}" class="shrink-0 px-2 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg">Edit day</button>
+                </div>
+              `).join('') || '<p class="text-sm text-slate-500">No daily details yet.</p>'}
+            </div>
           </div>
 
           <!-- Cycle History -->
@@ -2505,11 +2562,7 @@
             <div class="space-y-2">
               ${[...state.period.logs].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(log => {
                 const dayRows = getPeriodDailyDetails(log).map(detail => {
-                  const dayLabel = new Date(`${detail.date}T00:00:00`).toLocaleDateString(undefined, {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric'
-                  });
+                  const dayLabel = `${new Date(`${detail.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' })} · ${formatDateDisplay(detail.date)}`;
                   const symptoms = detail.symptoms.length ? detail.symptoms.map(escapeHTML).join(', ') : 'No symptoms';
                   return `
                     <div class="rounded-lg bg-white dark:bg-slate-900 px-3 py-2">
@@ -2521,7 +2574,7 @@
                 return `
                   <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 space-y-3">
                     <div class="flex items-center justify-between gap-2">
-                      <div class="text-sm font-semibold tabular-nums">${escapeHTML(log.startDate)} → ${escapeHTML(log.endDate || log.startDate)}</div>
+                      <div class="text-sm font-semibold tabular-nums">${escapeHTML(formatDateDisplay(log.startDate))} → ${escapeHTML(formatDateDisplay(log.endDate || log.startDate))}</div>
                       <div class="flex gap-1 shrink-0">
                         <button data-edit-period="${escapeHTML(log.id)}" class="px-2 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg" aria-label="Edit daily period details">Edit details</button>
                         <button data-del-period="${escapeHTML(log.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete period log"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
@@ -2552,14 +2605,94 @@
       document.getElementById('period-next-mo').addEventListener('click', () => { state.period.viewMonthOffset++; renderActiveView(); });
       document.getElementById('period-today-mo').addEventListener('click', () => { state.period.viewMonthOffset = 0; renderActiveView(); });
 
+      container.querySelectorAll('[data-period-date]').forEach(button => {
+        button.addEventListener('click', () => {
+          uiState.periodSelectedDate = button.getAttribute('data-period-date');
+          renderActiveView();
+        });
+      });
+
+      container.querySelectorAll('[data-edit-period-day]').forEach(button => {
+        button.addEventListener('click', () => {
+          uiState.periodSelectedDate = button.getAttribute('data-edit-period-day');
+          renderActiveView();
+          document.getElementById('period-daily-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      const dailyForm = document.getElementById('period-daily-form');
+      const dailyDateInput = document.getElementById('period-daily-date');
+      dailyDateInput.addEventListener('change', () => {
+        const date = parseDateDisplay(dailyDateInput.value);
+        if (!date) return;
+        uiState.periodSelectedDate = date;
+        const entry = getPeriodDailyEntry(date);
+        const flowInput = document.getElementById('period-daily-flow');
+        if (entry.flow && !Array.from(flowInput.options).some(option => option.value === entry.flow)) {
+          const option = document.createElement('option');
+          option.value = entry.flow;
+          option.textContent = entry.flow;
+          flowInput.add(option);
+        }
+        flowInput.value = entry.flow || '';
+        const symptomOptions = dailyForm.querySelector('[data-period-daily-symptom]')?.parentElement.parentElement;
+        if (symptomOptions) {
+          symptomOptions.innerHTML = renderPeriodDailySymptomOptions(getCategoryOptions('periodSymptoms'), entry.symptoms || []);
+        }
+        document.getElementById('period-daily-notes').value = entry.notes || '';
+        container.querySelectorAll('[data-period-date]').forEach(button => {
+          const selected = button.getAttribute('data-period-date') === date;
+          ['outline', 'outline-2', 'outline-offset-2', 'outline-indigo-500'].forEach(className => {
+            button.classList.toggle(className, selected);
+          });
+        });
+      });
+      dailyForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const date = parseDateDisplay(dailyDateInput.value);
+        if (!isValidISODate(date)) {
+          showToast('Choose a valid date for daily details', 'warning');
+          return;
+        }
+        const entry = {
+          date,
+          flow: document.getElementById('period-daily-flow').value,
+          symptoms: Array.from(dailyForm.querySelectorAll('[data-period-daily-symptom]:checked')).map(input => input.value),
+          notes: document.getElementById('period-daily-notes').value.trim()
+        };
+        const cycle = state.period.logs.find(log => {
+          const endDate = log.endDate || addDaysISO(log.startDate, (Number(state.period.periodLength) || 5) - 1);
+          return date >= log.startDate && date <= endDate;
+        });
+        if (cycle) {
+          const dailyDetails = getPeriodDailyDetails(cycle);
+          const existingIndex = dailyDetails.findIndex(detail => detail.date === date);
+          if (existingIndex >= 0) dailyDetails[existingIndex] = entry;
+          cycle.dailyDetails = dailyDetails;
+          cycle.flow = dailyDetails[0].flow;
+          cycle.symptoms = [...new Set(dailyDetails.flatMap(detail => detail.symptoms))];
+          cycle.notes = dailyDetails.filter(detail => detail.notes).map(detail => `${detail.date}: ${detail.notes}`).join('\n');
+          state.period.dailyEntries = state.period.dailyEntries.filter(detail => detail.date !== date);
+        } else {
+          const existingIndex = state.period.dailyEntries.findIndex(detail => detail.date === date);
+          if (existingIndex >= 0) state.period.dailyEntries[existingIndex] = entry;
+          else state.period.dailyEntries.push(entry);
+        }
+        uiState.periodSelectedDate = date;
+        saveState();
+        renderActiveView();
+        showToast('Daily details saved', 'success');
+      });
+
       const periodForm = document.getElementById('period-form');
       const startInput = document.getElementById('p-start');
       const endInput = document.getElementById('p-end');
       const dayDetailsContainer = document.getElementById('period-day-details');
       const refreshPeriodDayFields = () => {
         const existingDetails = collectPeriodDayDetails(dayDetailsContainer);
-        endInput.min = startInput.value;
-        dayDetailsContainer.innerHTML = renderPeriodDayFields(startInput.value, endInput.value, existingDetails, symptomsList);
+        const startDate = parseDateDisplay(startInput.value);
+        const endDate = parseDateDisplay(endInput.value);
+        dayDetailsContainer.innerHTML = renderPeriodDayFields(startDate, endDate, existingDetails, symptomsList);
       };
       startInput.addEventListener('change', refreshPeriodDayFields);
       endInput.addEventListener('change', refreshPeriodDayFields);
@@ -2574,12 +2707,14 @@
 
       periodForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const startDate = startInput.value;
-        const endDate = endInput.value;
+        const startDate = parseDateDisplay(startInput.value);
+        const endDate = parseDateDisplay(endInput.value);
         if (!startDate || !endDate || endDate < startDate) {
-          showToast('Choose a valid period date range', 'warning');
+          showToast('Choose a valid period date range using DD/MM/YYYY', 'warning');
           return;
         }
+        const existingDetails = collectPeriodDayDetails(dayDetailsContainer);
+        dayDetailsContainer.innerHTML = renderPeriodDayFields(startDate, endDate, existingDetails, symptomsList);
         const dailyDetails = collectPeriodDayDetails(dayDetailsContainer);
         if (dailyDetails.length !== diffDaysISO(startDate, endDate) + 1) {
           showToast('Add daily details for the selected date range', 'warning');
@@ -2632,14 +2767,10 @@
 
       container.innerHTML = `
         <div class="space-y-6">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="text-xs font-semibold uppercase text-slate-500">Today's Active Time</div>
               <div class="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-2 tabular-nums">${stats.todayMins} min</div>
-            </div>
-            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-              <div class="text-xs font-semibold uppercase text-slate-500">7-Day Calories Burned</div>
-              <div class="text-2xl font-bold mt-2 tabular-nums">${stats.weekCalories.toLocaleString()} kcal</div>
             </div>
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
               <div class="flex items-center justify-between">
@@ -2673,19 +2804,13 @@
                   </select>
                 </div>
               </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 mb-1">Duration (min)</label>
-                  <input id="act-duration" type="number" min="1" required value="30" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 mb-1">Calories (kcal)</label>
-                  <input id="act-calories" type="number" min="0" required value="180" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
-                </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Duration (min)</label>
+                <input id="act-duration" type="number" min="1" required value="30" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Date</label>
-                <input id="act-date" type="date" value="${today}" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                ${renderDateInput('act-date', today, 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm', true)}
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Notes</label>
@@ -2708,8 +2833,8 @@
               ${[...state.activity.logs].sort((a, b) => b.date.localeCompare(a.date)).map(l => `
                 <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
                   <div>
-                    <div class="text-sm font-semibold">${escapeHTML(l.type)} • ${l.duration} min <span class="text-xs font-normal text-slate-500">(${l.calories} kcal • ${l.intensity})</span></div>
-                    <div class="text-xs text-slate-500 mt-0.5 tabular-nums">${l.date}${l.notes ? ` • ${escapeHTML(l.notes)}` : ''}</div>
+                    <div class="text-sm font-semibold">${escapeHTML(l.type)} • ${l.duration} min <span class="text-xs font-normal text-slate-500">(${escapeHTML(l.intensity)})</span></div>
+                    <div class="text-xs text-slate-500 mt-0.5 tabular-nums">${escapeHTML(formatDateDisplay(l.date))}${l.notes ? ` • ${escapeHTML(l.notes)}` : ''}</div>
                   </div>
                   <div class="flex gap-1">
                     <button data-edit-act="${escapeHTML(l.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit activity"><i data-lucide="pencil" class="w-4 h-4"></i></button>
@@ -2737,11 +2862,13 @@
         const type = document.getElementById('act-type').value;
         const intensity = document.getElementById('act-intensity').value;
         const duration = Number(document.getElementById('act-duration').value);
-        const calories = Number(document.getElementById('act-calories').value);
-        const date = document.getElementById('act-date').value;
+        const date = parseDateDisplay(document.getElementById('act-date').value);
         const notes = document.getElementById('act-notes').value.trim();
-        if (!duration || duration <= 0) return;
-        state.activity.logs.push({ id: uid(), type, intensity, duration, calories, date, notes });
+        if (!duration || duration <= 0 || !date) {
+          showToast('Enter a valid duration and date', 'warning');
+          return;
+        }
+        state.activity.logs.push({ id: uid(), type, intensity, duration, date, notes });
         saveState();
         renderActiveView();
         showToast('Activity logged', 'success');
@@ -2759,14 +2886,12 @@
             { name: 'type', label: 'Activity', type: 'select', value: activity.type, options: activityTypes.map(value => ({ value, label: value })) },
             { name: 'intensity', label: 'Intensity', type: 'select', value: activity.intensity, options: intensityOptions.map(value => ({ value, label: value })) },
             { name: 'duration', label: 'Duration (minutes)', type: 'number', value: activity.duration, min: 1, required: true },
-            { name: 'calories', label: 'Calories (kcal)', type: 'number', value: activity.calories, min: 0, required: true },
             { name: 'date', label: 'Date', type: 'date', value: activity.date, required: true },
             { name: 'notes', label: 'Notes', value: activity.notes || '', wide: true }
           ], values => {
             activity.type = values.type;
             activity.intensity = values.intensity;
             activity.duration = Number(values.duration);
-            activity.calories = Number(values.calories);
             activity.date = values.date;
             activity.notes = values.notes.trim();
             saveState();
@@ -3026,7 +3151,7 @@
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">Deadline</label>
-                  <input id="g-deadline" type="date" value="${addDaysISO(today, 30)}" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+                  ${renderDateInput('g-deadline', addDaysISO(today, 30), 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm')}
                 </div>
               </div>
               <button type="submit" class="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm transition">Add Goal</button>
@@ -3044,7 +3169,7 @@
                           <h4 class="font-bold text-base">${escapeHTML(g.title)}</h4>
                           <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">${escapeHTML(g.category)}</span>
                         </div>
-                        <p class="text-xs text-slate-500 mt-0.5">Target date: ${g.deadline || 'None'}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Target date: ${g.deadline ? formatDateDisplay(g.deadline) : 'None'}</p>
                       </div>
                       <div class="flex gap-1">
                         <button data-edit-goal="${escapeHTML(g.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit goal"><i data-lucide="pencil" class="w-4 h-4"></i></button>
@@ -3124,8 +3249,13 @@
         const target = Number(document.getElementById('g-target').value);
         const unit = document.getElementById('g-unit').value.trim();
         const category = document.getElementById('g-cat').value;
-        const deadline = document.getElementById('g-deadline').value;
+        const deadlineInput = document.getElementById('g-deadline').value;
+        const deadline = parseDateDisplay(deadlineInput);
         if (!title || target <= 0) return;
+        if (deadlineInput && !deadline) {
+          showToast('Enter a valid deadline using DD/MM/YYYY', 'warning');
+          return;
+        }
         state.progress.goals.push({ id: uid(), title, current, target, unit, category, deadline });
         saveState();
         renderActiveView();
@@ -3276,7 +3406,7 @@
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1">Due Date</label>
-              <input id="todo-due" type="date" value="${todayISO()}" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
+              ${renderDateInput('todo-due', todayISO(), 'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm')}
             </div>
             <button type="submit" class="py-2 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm transition">Add Task</button>
           </form>
@@ -3309,7 +3439,7 @@
                     <input type="checkbox" data-toggle-todo="${escapeHTML(t.id)}" ${t.done ? 'checked' : ''} class="w-4 h-4 rounded text-sky-600" />
                     <div class="min-w-0">
                       <div class="text-sm font-medium truncate ${t.done ? 'line-through text-slate-400' : ''}">${escapeHTML(t.title)}</div>
-                      <div class="text-xs text-slate-500 tabular-nums">${t.dueDate ? `Due: ${t.dueDate}` : 'No due date'}</div>
+                      <div class="text-xs text-slate-500 tabular-nums">${t.dueDate ? `Due: ${formatDateDisplay(t.dueDate)}` : 'No due date'}</div>
                     </div>
                   </label>
                   <div class="flex items-center gap-2 shrink-0">
@@ -3333,8 +3463,13 @@
         const title = document.getElementById('todo-title').value.trim();
         const priority = document.getElementById('todo-priority').value;
         const category = document.getElementById('todo-category').value;
-        const dueDate = document.getElementById('todo-due').value;
+        const dueDateInput = document.getElementById('todo-due').value;
+        const dueDate = parseDateDisplay(dueDateInput);
         if (!title) return;
+        if (dueDateInput && !dueDate) {
+          showToast('Enter a valid due date using DD/MM/YYYY', 'warning');
+          return;
+        }
         state.todos.unshift({ id: uid(), title, priority, category, dueDate, done: false });
         saveState();
         renderActiveView();
@@ -3486,7 +3621,7 @@
                   </div>
                   <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">${escapeHTML(n.tag)}</span>
-                    <span>${new Date(n.updatedAt).toLocaleDateString()}</span>
+                    <span>${formatDateDisplay(new Date(n.updatedAt))}</span>
                   </div>
                 </div>
               `).join('') || '<div class="col-span-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-slate-500">No notes found.</div>'}
@@ -3562,7 +3697,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 7. TIME TOOLS (TIMER, STOPWATCH, ALARM)
+    // 7. TIME TOOLS (TIMER & STOPWATCH)
     // -------------------------------------------------------------------------
     function renderTimeTools(container) {
       container.innerHTML = `
@@ -3570,8 +3705,7 @@
           <div class="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 w-fit shadow-sm">
             ${[
               { id: 'timer', label: 'Timer', icon: 'hourglass' },
-              { id: 'stopwatch', label: 'Stopwatch', icon: 'watch' },
-              { id: 'alarm', label: 'Alarm', icon: 'alarm-clock' }
+              { id: 'stopwatch', label: 'Stopwatch', icon: 'watch' }
             ].map(tab => `
               <button data-time-tab="${escapeHTML(tab.id)}" class="px-4 py-2 rounded-xl text-sm font-semibold inline-flex items-center gap-2 transition ${
                 uiState.timeSubTab === tab.id ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -3700,117 +3834,6 @@
         document.getElementById('sw-reset-btn').addEventListener('click', resetStopwatch);
       }
 
-      else if (uiState.timeSubTab === 'alarm') {
-        const nowStr = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        sub.innerHTML = `
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-              <div class="text-center py-3 rounded-xl bg-slate-50 dark:bg-slate-800/70">
-                <div class="text-xs uppercase font-semibold text-slate-500">Current Time</div>
-                <div id="alarm-big-clock" class="text-3xl font-bold tabular-nums mt-1">${nowStr}</div>
-              </div>
-              <form id="alarm-form" class="space-y-3">
-                <h3 class="font-bold text-base">Set New Alarm</h3>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 mb-1">Time</label>
-                  <input id="alarm-time" type="time" required value="08:00" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 mb-1">Label</label>
-                  <input id="alarm-label" type="text" placeholder="e.g., Take Vitamins" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm" />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 mb-1">Frequency</label>
-                  <select id="alarm-repeat" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">
-                    <option value="Daily">Daily</option>
-                    <option value="Once">Once</option>
-                  </select>
-                </div>
-                <button type="submit" class="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-sm transition">Add Alarm</button>
-              </form>
-              <button id="test-alarm-sound" class="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition">Test Alarm Sound</button>
-            </div>
-
-            <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-              <h3 class="font-bold text-base mb-4">Your Alarms</h3>
-              <div class="space-y-2.5">
-                ${state.alarms.map(a => `
-                  <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <div>
-                      <div class="text-2xl font-bold tabular-nums ${a.enabled ? '' : 'text-slate-400'}">${a.time}</div>
-                      <div class="text-xs text-slate-500">${escapeHTML(a.label || 'Alarm')} • ${a.repeat}</div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" data-toggle-alarm="${escapeHTML(a.id)}" ${a.enabled ? 'checked' : ''} class="sr-only peer" />
-                        <div class="w-11 h-6 bg-slate-300 dark:bg-slate-700 peer-checked:bg-cyan-600 rounded-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
-                      </label>
-                      <button data-edit-alarm="${escapeHTML(a.id)}" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg" aria-label="Edit alarm"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                      <button data-del-alarm="${escapeHTML(a.id)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg" aria-label="Delete alarm"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                    </div>
-                  </div>
-                `).join('') || '<p class="text-sm text-slate-500 text-center py-6">No alarms set.</p>'}
-              </div>
-            </div>
-          </div>
-        `;
-
-        document.getElementById('alarm-form').addEventListener('submit', (e) => {
-          e.preventDefault();
-          getAudioCtx();
-          const time = document.getElementById('alarm-time').value;
-          const label = document.getElementById('alarm-label').value.trim() || 'Alarm';
-          const repeat = document.getElementById('alarm-repeat').value;
-          if (!time) return;
-          state.alarms.push({ id: uid(), time, label, repeat, enabled: true });
-          saveState();
-          renderTimeToolsSection();
-          showToast(`Alarm set for ${time}`, 'success');
-        });
-
-        document.getElementById('test-alarm-sound').addEventListener('click', () => {
-          playChimePattern();
-          showToast('Playing test chime', 'info');
-        });
-
-        sub.querySelectorAll('[data-toggle-alarm]').forEach(cb => {
-          cb.addEventListener('change', () => {
-            getAudioCtx();
-            const a = state.alarms.find(x => x.id === cb.getAttribute('data-toggle-alarm'));
-            if (a) { a.enabled = cb.checked; saveState(); renderTimeToolsSection(); }
-          });
-        });
-
-        sub.querySelectorAll('[data-edit-alarm]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const alarm = state.alarms.find(item => item.id === btn.getAttribute('data-edit-alarm'));
-            if (!alarm) return;
-            openRecordEditor('Edit Alarm', [
-              { name: 'time', label: 'Time', type: 'time', value: alarm.time, required: true },
-              { name: 'label', label: 'Label', value: alarm.label || '', required: true },
-              { name: 'repeat', label: 'Frequency', type: 'select', value: alarm.repeat, options: ['Daily', 'Once'].map(value => ({ value, label: value })) },
-              { name: 'enabled', label: 'Enabled', type: 'checkbox', value: alarm.enabled, checkboxLabel: 'Alarm is enabled', wide: true }
-            ], values => {
-              alarm.time = values.time;
-              alarm.label = values.label.trim() || 'Alarm';
-              alarm.repeat = values.repeat;
-              alarm.enabled = values.enabled === 'on';
-              saveState();
-              renderTimeToolsSection();
-              showToast('Alarm updated', 'success');
-            });
-          });
-        });
-
-        sub.querySelectorAll('[data-del-alarm]').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const id = btn.getAttribute('data-del-alarm');
-            state.alarms = state.alarms.filter(a => a.id !== id);
-            saveState();
-            renderTimeToolsSection();
-          });
-        });
-      }
       if (window.lucide) lucide.createIcons();
     }
 
@@ -3979,7 +4002,7 @@
                 Export from This Device
               </h3>
               <p class="text-xs text-slate-500 dark:text-slate-400">
-                Includes ${state.budget.transactions.length} transactions, ${state.budget.transfers.length} transfers, ${state.budget.profiles.length} financial profiles, ${state.period.logs.length} period logs, ${state.activity.logs.length} activities, ${state.progress.goals.length} goals, ${state.todos.length} tasks, ${state.notes.length} notes, and ${state.alarms.length} alarms.
+                Includes ${state.budget.transactions.length} transactions, ${state.budget.transfers.length} transfers, ${state.budget.profiles.length} financial profiles, ${state.period.logs.length} period logs, ${state.activity.logs.length} activities, ${state.progress.goals.length} goals, ${state.todos.length} tasks, and ${state.notes.length} notes.
               </p>
               <button id="download-json-btn" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition flex items-center justify-center gap-2">
                 <i data-lucide="download" class="w-4 h-4"></i>
@@ -4021,7 +4044,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `lifeflow-backup-${todayISO()}.json`;
+        a.download = `rhythm-backup-${formatDateDisplay(todayISO()).replace(/\//g, '-')}.json`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -4069,6 +4092,7 @@
     // BOOTSTRAP
     // =========================================================================
     window.addEventListener('DOMContentLoaded', () => {
+      bindDateInputEvents();
       applyTheme();
       renderNav();
       renderActiveView();
@@ -4099,7 +4123,7 @@
       document.getElementById('reset-demo-btn').addEventListener('click', () => {
         openModal({
           title: 'Clear All Data?',
-          body: 'This permanently removes all saved transactions, logs, goals, tasks, notes, and alarms from this device. Export a backup first if you may want this data later.',
+          body: 'This permanently removes all saved transactions, logs, goals, tasks, and notes from this device. Export a backup first if you may want this data later.',
           icon: 'rotate-ccw',
           actions: [
             { label: 'Cancel', className: 'px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition' },
@@ -4121,8 +4145,8 @@
         });
       });
 
-      updateLiveClockAndAlarms();
-      runtime.alarmCheckIntervalId = setInterval(updateLiveClockAndAlarms, 1000);
+      updateLiveClock();
+      setInterval(updateLiveClock, 1000);
     });
   </script>
 </body>

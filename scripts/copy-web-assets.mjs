@@ -14,6 +14,10 @@ await copyFile(
   path.join(projectRoot, 'lifeflow.generated.css'),
   path.join(webDirectory, 'lifeflow.generated.css')
 );
+await copyFile(
+  path.join(projectRoot, 'rhythm-logo.webp'),
+  path.join(webDirectory, 'rhythm-logo.webp')
+);
 
 const vendorFiles = ['chart.umd.min.js', 'lucide.min.js'];
 const webVendorDirectory = path.join(webDirectory, 'vendor');
